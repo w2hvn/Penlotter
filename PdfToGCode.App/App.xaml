@@ -4,6 +4,101 @@
              xmlns:local="clr-namespace:PdfToGCode.App"
              StartupUri="Views/MainWindow.xaml">
     <Application.Resources>
+        <!-- Colors -->
+        <Color x:Key="ColorPrimary">#007ACC</Color>
+        <Color x:Key="ColorSecondary">#F0F0F0</Color>
+        <Color x:Key="ColorBackground">#FAFAFA</Color>
+        <Color x:Key="ColorText">#333333</Color>
+        <Color x:Key="ColorLightBorder">#E0E0E0</Color>
+        <Color x:Key="ColorHover">#005A9E</Color>
+
+        <!-- Brushes -->
+        <SolidColorBrush x:Key="BrushPrimary" Color="{StaticResource ColorPrimary}"/>
+        <SolidColorBrush x:Key="BrushSecondary" Color="{StaticResource ColorSecondary}"/>
+        <SolidColorBrush x:Key="BrushBackground" Color="{StaticResource ColorBackground}"/>
+        <SolidColorBrush x:Key="BrushText" Color="{StaticResource ColorText}"/>
+        <SolidColorBrush x:Key="BrushLightBorder" Color="{StaticResource ColorLightBorder}"/>
+        <SolidColorBrush x:Key="BrushHover" Color="{StaticResource ColorHover}"/>
+
+        <!-- Button Style -->
+        <Style TargetType="Button" x:Key="ModernButtonStyle">
+            <Setter Property="Background" Value="{StaticResource BrushPrimary}"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="Padding" Value="15,8"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{TemplateBinding Background}"
+                                CornerRadius="5"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{StaticResource BrushHover}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Background" Value="#CCCCCC"/>
+                                <Setter Property="Foreground" Value="#888888"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- TextBox Style -->
+        <Style TargetType="TextBox" x:Key="ModernTextBoxStyle">
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLightBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <Border Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="3">
+                            <ScrollViewer x:Name="PART_ContentHost"/>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- Label/TextBlock Style -->
+        <Style TargetType="TextBlock" x:Key="HeaderTextStyle">
+            <Setter Property="FontSize" Value="18"/>
+            <Setter Property="FontWeight" Value="Bold"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="Margin" Value="0,0,0,10"/>
+        </Style>
+
+        <Style TargetType="Label" x:Key="LabelStyle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+        </Style>
+
+        <!-- Card/Panel Style -->
+        <Style x:Key="CardStyle" TargetType="Border">
+            <Setter Property="Background" Value="White"/>
+            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLightBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Effect">
+                <Setter.Value>
+                    <DropShadowEffect Color="#DDDDDD" BlurRadius="10" ShadowDepth="2" Opacity="0.5"/>
+                </Setter.Value>
+            </Setter>
+            <Setter Property="Padding" Value="10"/>
+        </Style>
 
     </Application.Resources>
 </Application>

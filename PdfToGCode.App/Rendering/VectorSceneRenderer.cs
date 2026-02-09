@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
@@ -18,7 +20,7 @@ namespace PdfToGCode.App.Rendering
             _glyphRenderer = new GlyphRenderer();
         }
 
-        public void RenderScene(ZoomPanCanvas canvas, List<PageData> pages, FontData fontData)
+        public async Task RenderSceneAsync(ZoomPanCanvas canvas, List<PageData> pages, FontData fontData)
         {
             if (canvas == null) return;
 
@@ -27,94 +29,116 @@ namespace PdfToGCode.App.Rendering
 
             if (pages == null || pages.Count == 0 || fontData == null) return;
 
-            // Layout strategy: Stack horizontally with margin
-            double currentX = 50; // Initial margin
-            double margin = 50;   // Gap between pages
+            // 1. Calculate Geometries in Background
+            // We compute the visual data (Paths) but creation of UI objects (PathGeometry) must be on UI thread or Freezable.
+            // PathGeometry is a Freezable. If created on background thread, it must be frozen to be used on UI thread.
+            // Let's create `PathGeometry` on background and Freeze it.
 
-            foreach (var page in pages)
+            var renderData = await Task.Run(() =>
             {
-                // Draw Page Border (Physical sheet)
-                var pageRect = new Rectangle
-                {
-                    Width = page.Width,
-                    Height = page.Height,
-                    Stroke = Brushes.Black,
-                    StrokeThickness = 1,
-                    Fill = Brushes.Transparent
-                };
+                var results = new List<(PathGeometry Geometry, double X, double Y, double Width, double Height, int PageNum)>();
+                double currentX = 50;
+                double margin = 50;
 
-                Canvas.SetLeft(pageRect, currentX);
-                Canvas.SetTop(pageRect, 0);
-                canvas.Children.Add(pageRect);
-
-                // Add page number label
-                var label = new TextBlock
+                foreach (var page in pages)
                 {
-                    Text = $"Page {page.PageNumber}",
-                    Foreground = Brushes.Black,
-                    FontSize = 14,
-                    FontWeight = System.Windows.FontWeights.Bold
-                };
-                Canvas.SetLeft(label, currentX);
-                Canvas.SetTop(label, -25); // Above page
-                canvas.Children.Add(label);
-
-                // Check text blocks
-                if (page.TextBlocks != null)
-                {
+                    // Geometry for this page
                     var pathGeometry = new PathGeometry();
 
-                    foreach (var block in page.TextBlocks)
+                    if (page.TextBlocks != null)
                     {
-                        foreach (var glyph in block.Glyphs)
+                        foreach (var block in page.TextBlocks)
                         {
-                            var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
-
-                            if (strokes == null) continue;
-
-                            foreach (var stroke in strokes)
+                            foreach (var glyph in block.Glyphs)
                             {
-                                if (stroke.Count < 2) continue;
+                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
+                                if (strokes == null) continue;
 
-                                var startPdf = stroke[0];
-                                // Convert relative to page top-left, then add currentX offset
-                                var startCanvas = CoordinateMapper.ConvertPdfToCanvas(startPdf, page.Height);
-                                var startPoint = new System.Windows.Point(startCanvas.X + currentX, startCanvas.Y);
-
-                                var figure = new PathFigure
+                                foreach (var stroke in strokes)
                                 {
-                                    StartPoint = startPoint,
-                                    IsClosed = false
-                                };
+                                    if (stroke.Count < 2) continue;
 
-                                var segment = new PolyLineSegment();
-                                for (int i = 1; i < stroke.Count; i++)
-                                {
-                                    var pdfPoint = stroke[i];
-                                    var canvasPoint = CoordinateMapper.ConvertPdfToCanvas(pdfPoint, page.Height);
-                                    segment.Points.Add(new System.Windows.Point(canvasPoint.X + currentX, canvasPoint.Y));
+                                    var startPdf = stroke[0];
+                                    var startCanvas = CoordinateMapper.ConvertPdfToCanvas(startPdf, page.Height);
+                                    // Local coordinates relative to page (0,0) at currentX
+                                    // But PathGeometry points are absolute.
+                                    // We can apply a Transform later, OR add currentX here.
+                                    // Adding here is simpler for single geometry.
+
+                                    var startPoint = new Point(startCanvas.X + currentX, startCanvas.Y);
+
+                                    var figure = new PathFigure
+                                    {
+                                        StartPoint = startPoint,
+                                        IsClosed = false
+                                    };
+
+                                    var segment = new PolyLineSegment();
+                                    for (int i = 1; i < stroke.Count; i++)
+                                    {
+                                        var pdfPoint = stroke[i];
+                                        var canvasPoint = CoordinateMapper.ConvertPdfToCanvas(pdfPoint, page.Height);
+                                        segment.Points.Add(new Point(canvasPoint.X + currentX, canvasPoint.Y));
+                                    }
+
+                                    figure.Segments.Add(segment);
+                                    pathGeometry.Figures.Add(figure);
                                 }
-
-                                figure.Segments.Add(segment);
-                                pathGeometry.Figures.Add(figure);
                             }
                         }
                     }
 
                     if (pathGeometry.Figures.Count > 0)
                     {
-                        var path = new Path
-                        {
-                            Data = pathGeometry,
-                            Stroke = Brushes.Red,
-                            StrokeThickness = 0.5
-                        };
-                        canvas.Children.Add(path);
+                        pathGeometry.Freeze(); // Make it cross-thread accessible
                     }
+
+                    results.Add((pathGeometry, currentX, 0, page.Width, page.Height, page.PageNumber));
+                    currentX += page.Width + margin;
                 }
 
-                // Advance X
-                currentX += page.Width + margin;
+                return results;
+            });
+
+            // 2. Update UI
+            foreach (var item in renderData)
+            {
+                // Draw Page Border
+                var pageRect = new Rectangle
+                {
+                    Width = item.Width,
+                    Height = item.Height,
+                    Stroke = Brushes.Black,
+                    StrokeThickness = 1,
+                    Fill = Brushes.Transparent
+                };
+                Canvas.SetLeft(pageRect, item.X);
+                Canvas.SetTop(pageRect, item.Y);
+                canvas.Children.Add(pageRect);
+
+                // Draw Label
+                var label = new TextBlock
+                {
+                    Text = $"Page {item.PageNum}",
+                    Foreground = Brushes.Black,
+                    FontSize = 14,
+                    FontWeight = FontWeights.Bold
+                };
+                Canvas.SetLeft(label, item.X);
+                Canvas.SetTop(label, -25);
+                canvas.Children.Add(label);
+
+                // Draw Path
+                if (item.Geometry.Figures.Count > 0)
+                {
+                    var path = new Path
+                    {
+                        Data = item.Geometry,
+                        Stroke = Brushes.Red,
+                        StrokeThickness = 0.5
+                    };
+                    canvas.Children.Add(path);
+                }
             }
         }
     }

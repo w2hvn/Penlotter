@@ -5,51 +5,93 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:rendering="clr-namespace:PdfToGCode.App.Rendering"
         mc:Ignorable="d"
-        Title="PDF to G-Code Converter" Height="800" Width="1200">
+        Title="PDF to G-Code Converter" Height="900" Width="1400"
+        Background="{StaticResource BrushSecondary}">
     <Grid>
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/> <!-- Header -->
+            <RowDefinition Height="Auto"/> <!-- Controls -->
+            <RowDefinition Height="*"/>    <!-- Content -->
+            <RowDefinition Height="Auto"/> <!-- Status -->
         </Grid.RowDefinitions>
 
-        <!-- Toolbar -->
-        <ToolBar Grid.Row="0" Padding="5">
-            <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Margin="0,0,5,0" Padding="5,2"/>
-            <Separator/>
-            <Label Content="Pages:" VerticalAlignment="Center"/>
-            <TextBox Name="txtPageRange" Width="100" VerticalAlignment="Center" Margin="0,0,5,0" ToolTip="e.g. 1-3, 5, 8"/>
-            <Button Name="btnSetRange" Content="Set" Click="btnSetRange_Click" Margin="0,0,5,0" Padding="5,2"/>
-            <Separator/>
-            <Button Name="btnPrevPage" Content="< Prev" Click="btnPrevPage_Click" IsEnabled="False" Margin="5,0,2,0" Padding="5,2"/>
-            <TextBlock Name="txtPageInfo" Text="Page 0 / 0" VerticalAlignment="Center" Margin="5,0"/>
-            <Button Name="btnNextPage" Content="Next >" Click="btnNextPage_Click" IsEnabled="False" Margin="2,0,5,0" Padding="5,2"/>
-            <Separator/>
-            <Button Name="btnVectorize" Content="Single-line Font" Click="btnVectorize_Click" Margin="5,0,5,0" Padding="5,2"/>
-            <Separator/>
-            <Button Name="btnGenerate" Content="Generate G-code" Click="btnGenerate_Click" Margin="5,0,5,0" Padding="5,2"/>
-            <Button Name="btnSave" Content="Save G-code" Click="btnSave_Click" Margin="5,0,0,0" Padding="5,2"/>
-        </ToolBar>
+        <!-- Header -->
+        <Border Grid.Row="0" Background="{StaticResource BrushPrimary}" Height="60" Padding="20,0">
+            <TextBlock Text="PDF to G-Code Studio"
+                       Foreground="White" FontSize="24" FontWeight="Bold"
+                       VerticalAlignment="Center"/>
+        </Border>
+
+        <!-- Controls Panel -->
+        <Border Grid.Row="1" Background="White" Padding="15" Margin="0,0,0,10">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/> <!-- Import & Range -->
+                    <ColumnDefinition Width="*"/>    <!-- Spacer -->
+                    <ColumnDefinition Width="Auto"/> <!-- Actions -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Left: Import & Range -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                    <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,15,0"/>
+
+                    <Label Content="Pages:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
+                    <TextBox Name="txtPageRange" Width="120" VerticalContentAlignment="Center" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
+                    <Button Name="btnSetRange" Content="Set Range" Click="btnSetRange_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,15,0"/>
+                </StackPanel>
+
+                <!-- Right: Actions -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Button Name="btnVectorize" Content="Preview Vectors" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                    <Button Name="btnGenerate" Content="Generate G-code" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                    <Button Name="btnSave" Content="Save Files" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                </StackPanel>
+            </Grid>
+        </Border>
 
         <!-- Content Area -->
-        <Grid Grid.Row="1">
+        <Grid Grid.Row="2" Margin="15,0,15,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="5"/>
+                <ColumnDefinition Width="15"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel: PDF Preview (Zoom/Pan) -->
-            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Margin="5" ClipToBounds="True">
-                <rendering:ZoomPanCanvas x:Name="canvasPdf" Background="LightGray"/>
+            <!-- Left Panel: PDF Preview -->
+            <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="PDF View" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
+                    <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
+                        <rendering:ZoomPanCanvas x:Name="canvasPdf" Background="#F5F5F5"/>
+                    </Border>
+                </Grid>
             </Border>
 
-            <!-- Splitter -->
-            <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
-
-            <!-- Right Panel: Vector Preview (Zoom/Pan) -->
-            <Border Grid.Column="2" BorderBrush="Gray" BorderThickness="1" Margin="5" ClipToBounds="True">
-                <rendering:ZoomPanCanvas x:Name="canvasPreview" Background="White"/>
+            <!-- Right Panel: Vector Preview -->
+            <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Vector Preview" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
+                    <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
+                        <rendering:ZoomPanCanvas x:Name="canvasPreview" Background="White"/>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="3" Background="#333333" Padding="10,5">
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Name="txtStatus" Text="Ready" Foreground="White" FontSize="12" Margin="0,0,15,0"/>
+                <ProgressBar Name="progressBar" Width="200" Height="10" IsIndeterminate="True" Visibility="Collapsed"/>
+            </StackPanel>
+        </Border>
     </Grid>
 </Window>

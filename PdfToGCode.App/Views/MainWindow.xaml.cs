@@ -2,13 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using System.Reflection;
-using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
-using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 using Microsoft.Win32;
 using PdfToGCode.App.Pdf;
 using PdfToGCode.App.Rendering;
@@ -37,80 +34,186 @@ namespace PdfToGCode.App.Views
             InitializeComponent();
             _pdfLoader = new PdfLoader();
             _sceneRenderer = new VectorSceneRenderer();
-            LoadFont();
-            txtPageInfo.Text = "No PDF loaded";
-
-            // Hide navigation buttons as we now show all selected pages
-            btnPrevPage.Visibility = Visibility.Collapsed;
-            btnNextPage.Visibility = Visibility.Collapsed;
+            LoadFontAsync();
+            UpdateStatus("Ready");
         }
 
-        private void LoadFont()
+        private async void LoadFontAsync()
         {
+            UpdateStatus("Loading Font...", true);
             try
             {
-                var assembly = typeof(SvgFontParser).Assembly;
-                var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
-
-                using (var stream = assembly.GetManifestResourceStream(resourceName))
+                await Task.Run(() =>
                 {
-                    if (stream == null)
+                    var assembly = typeof(SvgFontParser).Assembly;
+                    var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
+
+                    using (var stream = assembly.GetManifestResourceStream(resourceName))
                     {
-                        var resources = assembly.GetManifestResourceNames();
-                        var found = resources.FirstOrDefault(r => r.EndsWith("CHUINHOA.svg"));
-                        if (found != null)
+                        if (stream != null)
                         {
-                            using (var s = assembly.GetManifestResourceStream(found))
-                            using (var reader = new StreamReader(s))
+                            using (var reader = new StreamReader(stream))
                             {
                                 var content = reader.ReadToEnd();
                                 var parser = new SvgFontParser();
                                 _fontData = parser.Parse(content);
                             }
                         }
-                        else
-                        {
-                            MessageBox.Show("Could not find font resource CHUINHOA.svg.");
-                        }
                     }
-                    else
+                });
+
+                if (_fontData == null)
+                    MessageBox.Show("Could not load embedded font resource.");
+                else
+                    UpdateStatus("Font Loaded");
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Font Error: {ex.Message}");
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        private void UpdateStatus(string message, bool isBusy = false)
+        {
+            txtStatus.Text = message;
+            SetBusy(isBusy);
+        }
+
+        private void SetBusy(bool isBusy)
+        {
+            progressBar.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
+            // Optionally disable buttons
+            this.IsEnabled = !isBusy;
+        }
+
+        private async void btnImport_Click(object sender, RoutedEventArgs e)
+        {
+            var dlg = new OpenFileDialog();
+            dlg.Filter = "PDF Files (*.pdf)|*.pdf";
+            if (dlg.ShowDialog() == true)
+            {
+                _currentPdfPath = dlg.FileName;
+                UpdateStatus("Reading PDF info...", true);
+
+                try
+                {
+                    await Task.Run(() =>
                     {
-                        using (var reader = new StreamReader(stream))
-                        {
-                            var content = reader.ReadToEnd();
-                            var parser = new SvgFontParser();
-                            _fontData = parser.Parse(content);
-                        }
-                    }
+                        var result = _pdfLoader.Load(_currentPdfPath, 1);
+                        _totalPages = result.TotalPages;
+                    });
+
+                    _selectedPages.Clear();
+                    for(int i=1; i<=_totalPages; i++) _selectedPages.Add(i);
+
+                    txtPageRange.Text = $"1-{_totalPages}";
+
+                    await LoadSelectedPagesAsync();
+                    UpdateStatus($"Loaded {_currentPdfPath} ({_totalPages} pages)");
+                }
+                catch (Exception ex)
+                {
+                    UpdateStatus($"Import Error: {ex.Message}");
+                    MessageBox.Show($"Error opening PDF: {ex.Message}");
+                }
+                finally
+                {
+                    SetBusy(false);
+                }
+            }
+        }
+
+        private async void btnSetRange_Click(object sender, RoutedEventArgs e)
+        {
+            if (_totalPages == 0) return;
+
+            string rangeText = txtPageRange.Text;
+            UpdateStatus("Parsing range...", true);
+
+            try
+            {
+                var parsed = await Task.Run(() => PageRangeParser.Parse(rangeText, _totalPages));
+
+                if (parsed.Count > 0)
+                {
+                    _selectedPages = parsed;
+                    await LoadSelectedPagesAsync();
+                    UpdateStatus($"Selected {_selectedPages.Count} pages");
+                }
+                else
+                {
+                    MessageBox.Show("Invalid page range or no pages in range.");
+                    UpdateStatus("Invalid range");
                 }
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading font: {ex.Message}");
+                UpdateStatus($"Range Error: {ex.Message}");
+                MessageBox.Show($"Error parsing range: {ex.Message}");
+            }
+            finally
+            {
+                SetBusy(false);
             }
         }
 
-        private void LoadSelectedPages()
+        private async Task LoadSelectedPagesAsync()
         {
             if (string.IsNullOrEmpty(_currentPdfPath) || _selectedPages.Count == 0) return;
 
+            UpdateStatus("Loading Pages...", true);
+            canvasPdf.Children.Clear();
+            canvasPdf.Reset();
+            _loadedPages.Clear();
+            _generatedGCode.Clear();
+
+            // Prepare list for background processing if needed, but PdfLoader does image gen which might need UI thread or bitmap freezing
+            // PdfLoader.Load returns BitmapSource which must be created on UI thread or frozen.
+            // Let's run extraction in background but image creation is tricky with PdfiumViewer rendering to Bitmap (System.Drawing) then conversion.
+            // PdfLoader.Load currently does both.
+            // We should ideally split or ensure BitmapSource is frozen.
+            // PdfLoader.Load freezes the bitmap, so it should be safe to pass across threads.
+
             try
             {
-                canvasPdf.Children.Clear();
-                canvasPdf.Reset();
+                // Process in chunks or parallel? Parallel might crash Pdfium. Serial is safer.
+                var pages = await Task.Run(() =>
+                {
+                    var list = new List<(PageData Data, BitmapSource Image)>();
+                    double currentX = 50;
+                    double margin = 50;
 
-                _loadedPages.Clear();
-                _generatedGCode.Clear();
+                    foreach (var pageNum in _selectedPages)
+                    {
+                        var result = _pdfLoader.Load(_currentPdfPath, pageNum);
 
+                        // We can't access UI controls here (Canvas).
+                        // We return data to add later.
+
+                        var pageData = new PageData
+                        {
+                            PageNumber = pageNum,
+                            Width = result.Width,
+                            Height = result.Height,
+                            TextBlocks = result.Text
+                        };
+
+                        list.Add((pageData, result.Image));
+                    }
+                    return list;
+                });
+
+                // Update UI
                 double currentX = 50;
                 double margin = 50;
 
-                // Load all selected pages and display side-by-side
-                foreach (var pageNum in _selectedPages)
+                foreach (var item in pages)
                 {
-                    var result = _pdfLoader.Load(_currentPdfPath, pageNum);
-
-                    if (result.Image != null)
+                    if (item.Image != null)
                     {
                         var border = new Border
                         {
@@ -118,7 +221,7 @@ namespace PdfToGCode.App.Views
                             BorderThickness = new Thickness(1),
                             Child = new Image
                             {
-                                Source = result.Image,
+                                Source = item.Image,
                                 Stretch = Stretch.None
                             }
                         };
@@ -129,7 +232,7 @@ namespace PdfToGCode.App.Views
 
                         var label = new TextBlock
                         {
-                            Text = $"Page {pageNum}",
+                            Text = $"Page {item.Data.PageNumber}",
                             Foreground = Brushes.Black,
                             FontSize = 14,
                             FontWeight = FontWeights.Bold
@@ -138,88 +241,26 @@ namespace PdfToGCode.App.Views
                         Canvas.SetTop(label, -25);
                         canvasPdf.Children.Add(label);
 
-                        currentX += result.Image.Width + margin;
+                        currentX += item.Image.Width + margin;
                     }
                     else
                     {
-                        currentX += 500 + margin; // Fallback
+                        currentX += 500 + margin;
                     }
 
-                    _loadedPages.Add(new PageData
-                    {
-                        PageNumber = pageNum,
-                        Width = result.Width,
-                        Height = result.Height,
-                        TextBlocks = result.Text
-                    });
+                    _loadedPages.Add(item.Data);
                 }
 
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
-
-                txtPageInfo.Text = $"Showing {_selectedPages.Count} pages";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading pages: {ex.Message}");
+                 MessageBox.Show($"Error loading pages: {ex.Message}");
             }
         }
 
-        private void btnImport_Click(object sender, RoutedEventArgs e)
-        {
-            var dlg = new OpenFileDialog();
-            dlg.Filter = "PDF Files (*.pdf)|*.pdf";
-            if (dlg.ShowDialog() == true)
-            {
-                _currentPdfPath = dlg.FileName;
-
-                try
-                {
-                    var result = _pdfLoader.Load(_currentPdfPath, 1);
-                    _totalPages = result.TotalPages;
-
-                    _selectedPages.Clear();
-                    for(int i=1; i<=_totalPages; i++) _selectedPages.Add(i);
-
-                    txtPageRange.Text = $"1-{_totalPages}";
-
-                    LoadSelectedPages();
-                }
-                catch (Exception ex)
-                {
-                     MessageBox.Show($"Error opening PDF: {ex.Message}");
-                }
-            }
-        }
-
-        private void btnSetRange_Click(object sender, RoutedEventArgs e)
-        {
-            if (_totalPages == 0) return;
-
-            string rangeText = txtPageRange.Text;
-            try
-            {
-                var parsed = PageRangeParser.Parse(rangeText, _totalPages);
-                if (parsed.Count > 0)
-                {
-                    _selectedPages = parsed;
-                    LoadSelectedPages();
-                }
-                else
-                {
-                    MessageBox.Show("Invalid page range or no pages in range.");
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error parsing range: {ex.Message}");
-            }
-        }
-
-        private void btnPrevPage_Click(object sender, RoutedEventArgs e) { }
-        private void btnNextPage_Click(object sender, RoutedEventArgs e) { }
-
-        private void btnVectorize_Click(object sender, RoutedEventArgs e)
+        private async void btnVectorize_Click(object sender, RoutedEventArgs e)
         {
             if (_loadedPages.Count == 0)
             {
@@ -233,17 +274,40 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
+            UpdateStatus("Vectorizing...", true);
             try
             {
-                _sceneRenderer.RenderScene(canvasPreview, _loadedPages, _fontData);
+                // VectorSceneRenderer logic might be heavy.
+                // Refactor rendering to calculate paths in background, then add to canvas.
+                // VectorSceneRenderer.RenderScene currently does it all.
+                // We should modify it or just wrap it?
+                // Wrapping `RenderScene` in Task.Run won't work because it touches UI (Canvas).
+                // We need to split logic.
+                // For now, let's just await a Task that calculates geometries?
+                // Or: Modify VectorSceneRenderer to separate calculation from drawing.
+
+                // Let's assume VectorSceneRenderer is updated to be async-friendly or we do it here.
+                // Since I can't modify VectorSceneRenderer in this step (Plan says "Refactor Rendering" is next step),
+                // I will placeholder this and rely on next step.
+                // But wait, the plan says "Refactor Rendering for Async" is Step 4.
+                // So I should implement the Async handler here but call the (to be updated) renderer.
+
+                // Assuming RenderSceneAsync signature:
+                await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _fontData);
+                UpdateStatus("Vector Preview Ready");
             }
             catch (Exception ex)
             {
+                UpdateStatus($"Vectorize Error: {ex.Message}");
                 MessageBox.Show($"Error generating vectors: {ex.Message}");
+            }
+            finally
+            {
+                SetBusy(false);
             }
         }
 
-        private void btnGenerate_Click(object sender, RoutedEventArgs e)
+        private async void btnGenerate_Click(object sender, RoutedEventArgs e)
         {
             if (_loadedPages.Count == 0)
             {
@@ -257,38 +321,53 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
+            UpdateStatus("Generating G-code...", true);
+
             try
             {
-                var settings = new GCodeSettings();
-                var generator = new GCodeGenerator();
-
                 _generatedGCode.Clear();
 
-                foreach(var page in _loadedPages)
+                await Task.Run(() =>
                 {
-                    if (page.TextBlocks.Count > 0)
+                    var settings = new GCodeSettings();
+                    var generator = new GCodeGenerator();
+
+                    foreach(var page in _loadedPages)
                     {
-                        var gcode = generator.Generate(page.TextBlocks, _fontData, settings);
-                        _generatedGCode[page.PageNumber] = gcode;
+                        if (page.TextBlocks.Count > 0)
+                        {
+                            var gcode = generator.Generate(page.TextBlocks, _fontData, settings);
+                            // Locking needed? No, purely local loop or dictionary access.
+                            // But Dictionary is not thread safe if parallel.
+                            // This is sequential loop in Task, so safe.
+                            _generatedGCode[page.PageNumber] = gcode;
+                        }
                     }
-                }
+                });
 
                 if (_generatedGCode.Count > 0)
                 {
                     MessageBox.Show($"G-code generated for {_generatedGCode.Count} pages!");
+                    UpdateStatus($"G-code Generated ({_generatedGCode.Count} files)");
                 }
                 else
                 {
                      MessageBox.Show("No text found on selected pages.");
+                     UpdateStatus("No text extracted");
                 }
             }
             catch (Exception ex)
             {
+                UpdateStatus($"Generate Error: {ex.Message}");
                 MessageBox.Show($"Error generating G-code: {ex.Message}");
+            }
+            finally
+            {
+                SetBusy(false);
             }
         }
 
-        private void btnSave_Click(object sender, RoutedEventArgs e)
+        private async void btnSave_Click(object sender, RoutedEventArgs e)
         {
             if (_generatedGCode.Count == 0)
             {
@@ -305,29 +384,40 @@ namespace PdfToGCode.App.Views
 
             if (dlg.ShowDialog() == true)
             {
+                UpdateStatus("Saving files...", true);
                 try
                 {
                     string basePath = dlg.FileName;
-                    string dir = Path.GetDirectoryName(basePath);
-                    string name = Path.GetFileNameWithoutExtension(basePath);
-                    string ext = Path.GetExtension(basePath);
-                    if (string.IsNullOrEmpty(ext)) ext = ".gcode";
-
-                    int savedCount = 0;
-                    foreach (var kvp in _generatedGCode)
+                    int savedCount = await Task.Run(() =>
                     {
-                        int pageNum = kvp.Key;
-                        string content = kvp.Value;
-                        string finalPath = Path.Combine(dir, $"{name}_{pageNum}{ext}");
-                        File.WriteAllText(finalPath, content);
-                        savedCount++;
-                    }
+                        string dir = Path.GetDirectoryName(basePath);
+                        string name = Path.GetFileNameWithoutExtension(basePath);
+                        string ext = Path.GetExtension(basePath);
+                        if (string.IsNullOrEmpty(ext)) ext = ".gcode";
+
+                        int count = 0;
+                        foreach (var kvp in _generatedGCode)
+                        {
+                            int pageNum = kvp.Key;
+                            string content = kvp.Value;
+                            string finalPath = Path.Combine(dir, $"{name}_{pageNum}{ext}");
+                            File.WriteAllText(finalPath, content);
+                            count++;
+                        }
+                        return count;
+                    });
 
                     MessageBox.Show($"Saved {savedCount} files successfully.");
+                    UpdateStatus("Files Saved");
                 }
                 catch (Exception ex)
                 {
+                    UpdateStatus($"Save Error: {ex.Message}");
                     MessageBox.Show($"Error saving files: {ex.Message}");
+                }
+                finally
+                {
+                    SetBusy(false);
                 }
             }
         }
