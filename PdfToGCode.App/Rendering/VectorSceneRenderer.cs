@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -10,76 +11,70 @@ namespace PdfToGCode.App.Rendering
 {
     public class VectorSceneRenderer
     {
-        private Canvas _canvas;
-        private double _pageHeight;
+        private readonly GlyphRenderer _glyphRenderer;
 
-        public VectorSceneRenderer(Canvas canvas)
+        public VectorSceneRenderer()
         {
-            _canvas = canvas;
+            _glyphRenderer = new GlyphRenderer();
         }
 
-        public void SetPageHeight(double height)
+        public void RenderScene(ZoomPanCanvas canvas, List<ExtractedText> textBlocks, FontData fontData, double pageHeight)
         {
-            _pageHeight = height;
-        }
+            if (canvas == null) return;
 
-        public void Render(List<ExtractedText> textBlocks, FontData fontData)
-        {
-            _canvas.Children.Clear();
+            canvas.Children.Clear();
+            canvas.Reset();
+
+            if (textBlocks == null || textBlocks.Count == 0 || fontData == null) return;
+
+            var pathGeometry = new PathGeometry();
 
             foreach (var block in textBlocks)
             {
                 foreach (var glyph in block.Glyphs)
                 {
-                    if (!fontData.Glyphs.ContainsKey(glyph.Character)) continue;
+                    var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
 
-                    var geometry = fontData.Glyphs[glyph.Character];
-                    double scale = glyph.FontSize / fontData.UnitsPerEm;
+                    if (strokes == null) continue;
 
-                    var glyphGroup = new GeometryGroup();
-
-                    foreach (var stroke in geometry.Strokes)
+                    foreach (var stroke in strokes)
                     {
-                        if (stroke.Count == 0) continue;
+                        if (stroke.Count < 2) continue;
 
-                        var pathFigure = new PathFigure();
-                        var start = Transform(stroke[0], scale, glyph.BottomLeft);
-                        pathFigure.StartPoint = new System.Windows.Point(start.X, start.Y);
+                        var startPdf = stroke[0];
+                        var startCanvas = CoordinateMapper.ConvertPdfToCanvas(startPdf, pageHeight);
+                        var startPoint = new System.Windows.Point(startCanvas.X, startCanvas.Y);
 
+                        var figure = new PathFigure
+                        {
+                            StartPoint = startPoint,
+                            IsClosed = false // Single-line font
+                        };
+
+                        var segment = new PolyLineSegment();
                         for (int i = 1; i < stroke.Count; i++)
                         {
-                            var pt = Transform(stroke[i], scale, glyph.BottomLeft);
-                            pathFigure.Segments.Add(new LineSegment(new System.Windows.Point(pt.X, pt.Y), true));
+                            var pdfPoint = stroke[i];
+                            var canvasPoint = CoordinateMapper.ConvertPdfToCanvas(pdfPoint, pageHeight);
+                            segment.Points.Add(new System.Windows.Point(canvasPoint.X, canvasPoint.Y));
                         }
 
-                        var pathGeometry = new PathGeometry();
-                        pathGeometry.Figures.Add(pathFigure);
-                        glyphGroup.Children.Add(pathGeometry);
+                        figure.Segments.Add(segment);
+                        pathGeometry.Figures.Add(figure);
                     }
-
-                    var path = new Path
-                    {
-                        Data = glyphGroup,
-                        Stroke = Brushes.Red,
-                        StrokeThickness = 1.0
-                    };
-
-                    _canvas.Children.Add(path);
                 }
             }
-        }
 
-        private PdfPoint Transform(PdfPoint fontPoint, double scale, PdfPoint originPdf)
-        {
-            double xPdf = fontPoint.X * scale + originPdf.X;
-            double yPdf = fontPoint.Y * scale + originPdf.Y;
-
-            double dpiScale = 96.0 / 72.0;
-
-            double xWpf = xPdf * dpiScale;
-            double yWpf = (_pageHeight - yPdf) * dpiScale;
-
-            return new PdfPoint(xWpf, yWpf);
+            if (pathGeometry.Figures.Count > 0)
+            {
+                var path = new Path
+                {
+                    Data = pathGeometry,
+                    Stroke = Brushes.Red,     // Changed to Red as requested
+                    StrokeThickness = 0.5     // Thinner stroke for better detail
+                };
+                canvas.Children.Add(path);
+            }
         }
     }
 }

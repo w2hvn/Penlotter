@@ -10,33 +10,33 @@ namespace PdfToGCode.App.Pdf
 {
     public class PdfLoader
     {
-        private PdfTextLayoutExtractor _extractor = new PdfTextLayoutExtractor();
+        private readonly PdfTextLayoutExtractor _extractor = new PdfTextLayoutExtractor();
 
+        /// <summary>
+        /// Loads PDF page, extracts text and renders image.
+        /// </summary>
+        /// <param name="path">PDF file path.</param>
+        /// <param name="pageNumber">1-based page number.</param>
+        /// <returns>Extracted text, Page Width, Page Height, Rendered Image.</returns>
         public (List<ExtractedText> Text, double Width, double Height, BitmapSource Image) Load(string path, int pageNumber = 1)
         {
             if (!File.Exists(path)) return (new List<ExtractedText>(), 0, 0, null);
 
-            var (width, height) = _extractor.GetPageDimensions(path, pageNumber);
+            // 1. Get dimensions and text in one go (using PdfPig)
+            var (text, width, height) = _extractor.ExtractPage(path, pageNumber);
 
-            // Extract all words and filter
-            var allText = _extractor.ExtractWords(path);
-            var filteredText = new List<ExtractedText>();
-            foreach(var t in allText)
-            {
-                if(t.PageNumber == pageNumber)
-                    filteredText.Add(t);
-            }
-
+            // 2. Render image (using PdfiumViewer)
             BitmapSource image = null;
             try
             {
-                // PdfiumViewer uses 0-based index
                 using (var doc = PdfDocument.Load(path))
                 {
-                    // Calculate pixels for 96 DPI
+                    // Calculate pixels for 96 DPI (Standard screen DPI)
+                    // width/height are in Points (1/72 inch).
                     int w = (int)(width / 72.0 * 96.0);
                     int h = (int)(height / 72.0 * 96.0);
 
+                    // PdfiumViewer uses 0-based index
                     using (var bitmap = doc.Render(pageNumber - 1, w, h, 96, 96, PdfRenderFlags.CorrectFromDpi))
                     {
                         image = ToBitmapSource(bitmap);
@@ -45,10 +45,10 @@ namespace PdfToGCode.App.Pdf
             }
             catch
             {
-                // Ignore rendering errors (e.g. if native lib missing)
+                // Fallback if rendering fails
             }
 
-            return (filteredText, width, height, image);
+            return (text, width, height, image);
         }
 
         private BitmapSource ToBitmapSource(System.Drawing.Image source)

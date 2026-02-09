@@ -42,14 +42,16 @@ namespace PdfToGCode.Core.Fonts
             foreach (var glyph in fontElement.Descendants().Where(e => e.Name.LocalName == "glyph"))
             {
                 var unicodeStr = glyph.Attribute("unicode")?.Value;
-                if (string.IsNullOrEmpty(unicodeStr) || unicodeStr.Length != 1) continue;
+                if (string.IsNullOrEmpty(unicodeStr)) continue;
+
+                if (unicodeStr.Length != 1) continue;
 
                 var unicode = unicodeStr[0];
                 var advXStr = glyph.Attribute("horiz-adv-x")?.Value;
                 double advX = defaultAdvX;
                 if (double.TryParse(advXStr, out double gVal)) advX = gVal;
 
-                var d = glyph.Attribute("d")?.Value;
+                var d = glyph.Attribute("d")?.Value ?? string.Empty;
 
                 var strokes = ParsePath(d);
                 fontData.Glyphs[unicode] = new GlyphGeometry
@@ -68,44 +70,192 @@ namespace PdfToGCode.Core.Fonts
             var strokes = new List<List<PdfPoint>>();
             if (string.IsNullOrWhiteSpace(d)) return strokes;
 
-            var commands = Regex.Split(d, @"(?=[ML])").Where(s => !string.IsNullOrWhiteSpace(s));
+            // Updated Regex to capture commands and arguments
+            var matches = Regex.Matches(d, @"([MLHVQCAZmlhvqcaz])\s*([^MLHVQCAZmlhvqcaz]*)");
 
             List<PdfPoint> currentStroke = null;
+            PdfPoint currentPos = new PdfPoint(0, 0);
+            PdfPoint startPos = new PdfPoint(0, 0); // Start of current subpath (for Z)
 
-            foreach (var cmd in commands)
+            foreach (Match match in matches)
             {
-                var trimmed = cmd.Trim();
-                if (trimmed.Length == 0) continue;
+                var command = match.Groups[1].Value[0];
+                var argsStr = match.Groups[2].Value;
 
-                var type = trimmed[0];
-                var coordsPart = trimmed.Substring(1).Trim();
-                var coords = coordsPart.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                var args = argsStr.Split(new[] { ' ', ',', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                                  .Select(s => double.TryParse(s, out double v) ? v : (double?)null)
+                                  .Where(v => v.HasValue)
+                                  .Select(v => v.Value)
+                                  .ToList();
 
-                if (coords.Length < 2) continue;
+                int i = 0;
+                bool isRelative = char.IsLower(command);
+                char type = char.ToUpper(command);
 
-                if (!double.TryParse(coords[0], out double x) || !double.TryParse(coords[1], out double y))
-                    continue;
-
-                var point = new PdfPoint(x, y);
-
-                if (type == 'M')
+                while (true)
                 {
-                    currentStroke = new List<PdfPoint>();
-                    strokes.Add(currentStroke);
-                    currentStroke.Add(point);
-                }
-                else if (type == 'L')
-                {
-                    if (currentStroke == null)
+                    if (type == 'M')
                     {
+                        if (i + 1 >= args.Count) break;
+
+                        double ax = args[i];
+                        double ay = args[i+1];
+                        i += 2;
+
+                        var pt = isRelative ? new PdfPoint(currentPos.X + ax, currentPos.Y + ay) : new PdfPoint(ax, ay);
+
                         currentStroke = new List<PdfPoint>();
                         strokes.Add(currentStroke);
+                        currentStroke.Add(pt);
+                        currentPos = pt;
+                        startPos = pt; // New subpath start
+
+                        // Implicit L
+                        type = 'L';
+                        // If M is relative (m), implicit L is relative (l).
+                        // If M is absolute (M), implicit L is absolute (L).
+                        // isRelative stays the same.
                     }
-                    currentStroke.Add(point);
+                    else if (type == 'L')
+                    {
+                        if (i + 1 >= args.Count) break;
+                        double ax = args[i];
+                        double ay = args[i+1];
+                        i += 2;
+
+                        var pt = isRelative ? new PdfPoint(currentPos.X + ax, currentPos.Y + ay) : new PdfPoint(ax, ay);
+
+                        if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+                        currentStroke.Add(pt);
+                        currentPos = pt;
+                    }
+                    else if (type == 'H')
+                    {
+                        if (i >= args.Count) break;
+                        double ax = args[i];
+                        i++;
+
+                        var pt = isRelative ? new PdfPoint(currentPos.X + ax, currentPos.Y) : new PdfPoint(ax, currentPos.Y);
+
+                        if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+                        currentStroke.Add(pt);
+                        currentPos = pt;
+                    }
+                    else if (type == 'V')
+                    {
+                        if (i >= args.Count) break;
+                        double ay = args[i];
+                        i++;
+
+                        var pt = isRelative ? new PdfPoint(currentPos.X, currentPos.Y + ay) : new PdfPoint(currentPos.X, ay);
+
+                        if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+                        currentStroke.Add(pt);
+                        currentPos = pt;
+                    }
+                    else if (type == 'C') // Cubic Bezier: (x1 y1 x2 y2 x y)
+                    {
+                        if (i + 5 >= args.Count) break;
+
+                        double x1 = args[i], y1 = args[i+1];
+                        double x2 = args[i+2], y2 = args[i+3];
+                        double x = args[i+4], y = args[i+5];
+                        i += 6;
+
+                        var p1 = isRelative ? new PdfPoint(currentPos.X + x1, currentPos.Y + y1) : new PdfPoint(x1, y1);
+                        var p2 = isRelative ? new PdfPoint(currentPos.X + x2, currentPos.Y + y2) : new PdfPoint(x2, y2);
+                        var p3 = isRelative ? new PdfPoint(currentPos.X + x, currentPos.Y + y) : new PdfPoint(x, y);
+
+                        if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+
+                        // Linearize Bezier
+                        AddBezierCubic(currentStroke, currentPos, p1, p2, p3);
+                        currentPos = p3;
+                    }
+                    else if (type == 'Q') // Quadratic Bezier: (x1 y1 x y)
+                    {
+                        if (i + 3 >= args.Count) break;
+
+                        double x1 = args[i], y1 = args[i+1];
+                        double x = args[i+2], y = args[i+3];
+                        i += 4;
+
+                        var p1 = isRelative ? new PdfPoint(currentPos.X + x1, currentPos.Y + y1) : new PdfPoint(x1, y1);
+                        var p2 = isRelative ? new PdfPoint(currentPos.X + x, currentPos.Y + y) : new PdfPoint(x, y);
+
+                        if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+
+                        // Convert Quad to Cubic
+                        // CP1 = P0 + 2/3 (P1 - P0)
+                        // CP2 = P2 + 2/3 (P1 - P2)
+                        var cp1 = new PdfPoint(currentPos.X + (2.0/3.0)*(p1.X - currentPos.X), currentPos.Y + (2.0/3.0)*(p1.Y - currentPos.Y));
+                        var cp2 = new PdfPoint(p2.X + (2.0/3.0)*(p2.X - p2.X), p2.Y + (2.0/3.0)*(p1.Y - p2.Y)); // Typo in previous logic: p2.X - p2.X is 0.
+                        // Wait, P2 + 2/3(P1 - P2). Correct.
+                        // Previous logic: p2.X + ... (p1.X - p2.X). Yes.
+                        // I wrote p1.X - p2.X correctly in previous block but let's recheck.
+
+                        // Correct logic for Quad to Cubic:
+                        // C1 = P0 + (2/3)(P1 - P0)
+                        // C2 = P2 + (2/3)(P1 - P2)
+
+                        cp1 = new PdfPoint(currentPos.X + (2.0/3.0)*(p1.X - currentPos.X), currentPos.Y + (2.0/3.0)*(p1.Y - currentPos.Y));
+                        cp2 = new PdfPoint(p2.X + (2.0/3.0)*(p1.X - p2.X), p2.Y + (2.0/3.0)*(p1.Y - p2.Y));
+
+                        AddBezierCubic(currentStroke, currentPos, cp1, cp2, p2);
+                        currentPos = p2;
+                    }
+                    else if (type == 'A') // Arc (Simplify to Line)
+                    {
+                         // Elliptical Arc: (rx ry x-axis-rotation large-arc-flag sweep-flag x y)
+                         if (i + 6 >= args.Count) break;
+                         // Skip flags and radii, just draw line to end point for single-line simplification
+                         double x = args[i+5];
+                         double y = args[i+6];
+                         i += 7;
+
+                         var endPt = isRelative ? new PdfPoint(currentPos.X + x, currentPos.Y + y) : new PdfPoint(x, y);
+
+                         if (currentStroke == null) { currentStroke = new List<PdfPoint>(); strokes.Add(currentStroke); currentStroke.Add(currentPos); }
+                         currentStroke.Add(endPt);
+                         currentPos = endPt;
+                    }
+                    else if (type == 'Z')
+                    {
+                        // Close Path
+                        if (currentStroke != null && currentStroke.Count > 0)
+                        {
+                            currentStroke.Add(startPos); // Line back to start
+                            currentPos = startPos;
+                        }
+                        break;
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
 
             return strokes;
+        }
+
+        private void AddBezierCubic(List<PdfPoint> stroke, PdfPoint p0, PdfPoint p1, PdfPoint p2, PdfPoint p3)
+        {
+            int steps = 10;
+            for (int i = 1; i <= steps; i++)
+            {
+                double t = i / (double)steps;
+                double u = 1 - t;
+                double tt = t * t;
+                double uu = u * u;
+                double uuu = uu * u;
+                double ttt = tt * t;
+
+                double x = uuu * p0.X + 3 * uu * t * p1.X + 3 * u * tt * p2.X + ttt * p3.X;
+                double y = uuu * p0.Y + 3 * uu * t * p1.Y + 3 * u * tt * p2.Y + ttt * p3.Y;
+
+                stroke.Add(new PdfPoint(x, y));
+            }
         }
     }
 }

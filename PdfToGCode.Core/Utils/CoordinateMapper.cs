@@ -21,5 +21,16 @@ namespace PdfToGCode.Core.Utils
         {
             return new PdfPoint(PointsToMm(point.X), PointsToMm(point.Y));
         }
+
+        /// <summary>
+        /// Converts PDF coordinates (Bottom-Left origin) to Canvas/Screen coordinates (Top-Left origin).
+        /// </summary>
+        /// <param name="point">The point in PDF coordinates.</param>
+        /// <param name="pageHeight">The height of the page in the same units as the point.</param>
+        /// <returns>The point in Top-Left origin coordinates.</returns>
+        public static PdfPoint ConvertPdfToCanvas(PdfPoint point, double pageHeight)
+        {
+            return new PdfPoint(point.X, pageHeight - point.Y);
+        }
     }
 }

@@ -1,105 +1,79 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using PdfToGCode.App.Pdf;
 using PdfToGCode.App.Rendering;
 using PdfToGCode.Core.Fonts;
 using PdfToGCode.Core.GCode;
 using PdfToGCode.Core.Pdf;
+using PdfToGCode.Core.Utils;
 
 namespace PdfToGCode.App.Views
 {
     public partial class MainWindow : Window
     {
         private PdfLoader _pdfLoader;
-        private SvgFontParser _fontParser;
-        private VectorSceneRenderer _vectorRenderer;
-        private GCodeGenerator _gcodeGenerator;
-
+        private VectorSceneRenderer _sceneRenderer;
         private List<ExtractedText> _extractedText;
         private FontData _fontData;
-        private double _pageWidth;
+        private string _loadedGCode;
         private double _pageHeight;
 
         public MainWindow()
         {
             InitializeComponent();
             _pdfLoader = new PdfLoader();
-            _fontParser = new SvgFontParser();
-            _vectorRenderer = new VectorSceneRenderer(VectorCanvas);
-            _gcodeGenerator = new GCodeGenerator();
-
-            // Try to load default font
-            if (File.Exists("CHUINHOA.svg"))
-            {
-                 LoadFont("CHUINHOA.svg");
-            }
-            else if (File.Exists("../PdfToGCode.Core/Fonts/CHUINHOA.svg"))
-            {
-                 LoadFont("../PdfToGCode.Core/Fonts/CHUINHOA.svg");
-            }
+            _sceneRenderer = new VectorSceneRenderer();
+            LoadFont();
         }
 
-        private void BtnOpenPdf_Click(object sender, RoutedEventArgs e)
-        {
-            var dialog = new OpenFileDialog { Filter = "PDF Files|*.pdf" };
-            if (dialog.ShowDialog() == true)
-            {
-                LoadPdf(dialog.FileName);
-            }
-        }
-
-        private void LoadPdf(string path)
+        private void LoadFont()
         {
             try
             {
-                var result = _pdfLoader.Load(path);
-                if (result.Text == null)
+                var assembly = typeof(SvgFontParser).Assembly;
+                // Resource name might vary. Usually AssemblyName.Folder.File
+                // Checking default namespace of Core project.
+                var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
+
+                using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
-                    MessageBox.Show("Could not load PDF text.");
-                    return;
+                    if (stream == null)
+                    {
+                        // Try finding resource
+                        var resources = assembly.GetManifestResourceNames();
+                        var found = resources.FirstOrDefault(r => r.EndsWith("CHUINHOA.svg"));
+                        if (found != null)
+                        {
+                            using (var s = assembly.GetManifestResourceStream(found))
+                            using (var reader = new StreamReader(s))
+                            {
+                                var content = reader.ReadToEnd();
+                                var parser = new SvgFontParser();
+                                _fontData = parser.Parse(content);
+                            }
+                        }
+                        else
+                        {
+                            MessageBox.Show("Could not find font resource CHUINHOA.svg. Please ensure it is embedded in PdfToGCode.Core.");
+                        }
+                    }
+                    else
+                    {
+                        using (var reader = new StreamReader(stream))
+                        {
+                            var content = reader.ReadToEnd();
+                            var parser = new SvgFontParser();
+                            _fontData = parser.Parse(content);
+                        }
+                    }
                 }
-
-                _extractedText = result.Text;
-                _pageWidth = result.Width;
-                _pageHeight = result.Height;
-
-                PdfPreviewImage.Source = result.Image;
-
-                // Set canvas size (scaled to 96 DPI)
-                double dpiScale = 96.0 / 72.0;
-                VectorCanvas.Width = _pageWidth * dpiScale;
-                VectorCanvas.Height = _pageHeight * dpiScale;
-
-                // Pass PageHeight in Points (as used in Transform logic)
-                _vectorRenderer.SetPageHeight(_pageHeight);
-
-                RenderVectors();
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Error loading PDF: {ex.Message}");
-            }
-        }
-
-        private void BtnLoadFont_Click(object sender, RoutedEventArgs e)
-        {
-             var dialog = new OpenFileDialog { Filter = "SVG Files|*.svg" };
-             if (dialog.ShowDialog() == true)
-             {
-                 LoadFont(dialog.FileName);
-             }
-        }
-
-        private void LoadFont(string path)
-        {
-            try
-            {
-                var content = File.ReadAllText(path);
-                _fontData = _fontParser.Parse(content);
-                RenderVectors();
             }
             catch (Exception ex)
             {
@@ -107,35 +81,124 @@ namespace PdfToGCode.App.Views
             }
         }
 
-        private void RenderVectors()
+        private void btnImport_Click(object sender, RoutedEventArgs e)
         {
-            if (_extractedText != null && _fontData != null)
-            {
-                _vectorRenderer.Render(_extractedText, _fontData);
-            }
-        }
-
-        private void BtnGenerateGCode_Click(object sender, RoutedEventArgs e)
-        {
-            if (_extractedText == null || _fontData == null)
-            {
-                MessageBox.Show("Please load PDF and Font first.");
-                return;
-            }
-
-            var dialog = new SaveFileDialog { Filter = "G-Code Files|*.nc;*.gcode" };
-            if (dialog.ShowDialog() == true)
+            var dlg = new OpenFileDialog();
+            dlg.Filter = "PDF Files (*.pdf)|*.pdf";
+            if (dlg.ShowDialog() == true)
             {
                 try
                 {
-                    var settings = new GCodeSettings(); // Use defaults
-                    var gcode = _gcodeGenerator.Generate(_extractedText, _fontData, settings);
-                    File.WriteAllText(dialog.FileName, gcode);
-                    MessageBox.Show("G-Code saved successfully.");
+                    var result = _pdfLoader.Load(dlg.FileName, 1); // Load page 1 for now
+
+                    canvasPdf.Children.Clear();
+                    canvasPdf.Reset();
+
+                    if (result.Image != null)
+                    {
+                        var img = new Image
+                        {
+                            Source = result.Image,
+                            Stretch = System.Windows.Media.Stretch.None
+                        };
+                        // Add image to ZoomPanCanvas
+                        canvasPdf.Children.Add(img);
+                        // Optionally center or fit?
+                        // For now, it will be at (0,0)
+                    }
+
+                    _extractedText = result.Text;
+                    if (_extractedText.Count == 0)
+                    {
+                         MessageBox.Show("Warning: No text extracted from PDF. This might be an image-only PDF.");
+                    }
+
+                    _pageHeight = result.Height;
+
+                    // Clear vector preview
+                    canvasPreview.Children.Clear();
+                    canvasPreview.Reset();
+                    _loadedGCode = null;
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error generating G-Code: {ex.Message}");
+                    MessageBox.Show($"Error loading PDF: {ex.Message}");
+                }
+            }
+        }
+
+        private void btnVectorize_Click(object sender, RoutedEventArgs e)
+        {
+            if (_extractedText == null || _extractedText.Count == 0)
+            {
+                MessageBox.Show("Please import a PDF with text first.");
+                return;
+            }
+
+            if (_fontData == null)
+            {
+                MessageBox.Show("Font data not loaded.");
+                return;
+            }
+
+            try
+            {
+                _sceneRenderer.RenderScene(canvasPreview, _extractedText, _fontData, _pageHeight);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error generating vectors: {ex.Message}");
+            }
+        }
+
+        private void btnGenerate_Click(object sender, RoutedEventArgs e)
+        {
+            if (_extractedText == null || _extractedText.Count == 0)
+            {
+                MessageBox.Show("Please import a PDF with text first.");
+                return;
+            }
+
+            if (_fontData == null)
+            {
+                MessageBox.Show("Font data not loaded.");
+                return;
+            }
+
+            try
+            {
+                var settings = new GCodeSettings(); // Use default settings for now
+                var generator = new GCodeGenerator();
+                _loadedGCode = generator.Generate(_extractedText, _fontData, settings);
+
+                MessageBox.Show("G-code generated successfully!");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error generating G-code: {ex.Message}");
+            }
+        }
+
+        private void btnSave_Click(object sender, RoutedEventArgs e)
+        {
+            if (string.IsNullOrEmpty(_loadedGCode))
+            {
+                MessageBox.Show("Please generate G-code first.");
+                return;
+            }
+
+            var dlg = new SaveFileDialog();
+            dlg.Filter = "G-code Files (*.gcode;*.nc)|*.gcode;*.nc";
+            if (dlg.ShowDialog() == true)
+            {
+                try
+                {
+                    File.WriteAllText(dlg.FileName, _loadedGCode);
+                    MessageBox.Show("G-code saved successfully.");
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Error saving file: {ex.Message}");
                 }
             }
         }
