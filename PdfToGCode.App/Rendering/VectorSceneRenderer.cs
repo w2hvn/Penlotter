@@ -18,12 +18,37 @@ namespace PdfToGCode.App.Rendering
             _glyphRenderer = new GlyphRenderer();
         }
 
-        public void RenderScene(ZoomPanCanvas canvas, List<ExtractedText> textBlocks, FontData fontData, double pageHeight)
+        public void RenderScene(ZoomPanCanvas canvas, List<ExtractedText> textBlocks, FontData fontData, double pageHeight, double pageWidth)
         {
             if (canvas == null) return;
 
             canvas.Children.Clear();
             canvas.Reset();
+
+            // Draw Page Border
+            // In WPF Canvas, (0,0) is top-left.
+            // In PDF, (0,0) is bottom-left.
+            // CoordinateMapper.ConvertPdfToCanvas handles this flip.
+            // However, for the page rectangle itself, we want to draw it from (0,0) to (Width, Height) in WPF space.
+            // CoordinateMapper assumes a point (x,y) in PDF space.
+            // PDF (0,0) -> WPF (0, H).
+            // PDF (W,H) -> WPF (W, 0).
+            // So the rectangle in WPF space is still (0,0) to (Width, Height), but filled differently?
+            // Actually, WPF Canvas origin is top-left. A rectangle of WxH at (0,0) covers the visible area.
+
+            var pageRect = new Rectangle
+            {
+                Width = pageWidth,
+                Height = pageHeight,
+                Stroke = Brushes.Black,
+                StrokeThickness = 1,
+                Fill = Brushes.Transparent // Transparent so grid behind (if any) or just white background shows
+            };
+
+            // Add border at (0,0)
+            Canvas.SetLeft(pageRect, 0);
+            Canvas.SetTop(pageRect, 0);
+            canvas.Children.Add(pageRect);
 
             if (textBlocks == null || textBlocks.Count == 0 || fontData == null) return;
 
@@ -48,7 +73,7 @@ namespace PdfToGCode.App.Rendering
                         var figure = new PathFigure
                         {
                             StartPoint = startPoint,
-                            IsClosed = false // Single-line font
+                            IsClosed = false
                         };
 
                         var segment = new PolyLineSegment();
@@ -70,8 +95,8 @@ namespace PdfToGCode.App.Rendering
                 var path = new Path
                 {
                     Data = pathGeometry,
-                    Stroke = Brushes.Red,     // Changed to Red as requested
-                    StrokeThickness = 0.5     // Thinner stroke for better detail
+                    Stroke = Brushes.Red,
+                    StrokeThickness = 0.5
                 };
                 canvas.Children.Add(path);
             }

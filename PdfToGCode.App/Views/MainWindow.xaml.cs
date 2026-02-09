@@ -24,6 +24,10 @@ namespace PdfToGCode.App.Views
         private FontData _fontData;
         private string _loadedGCode;
         private double _pageHeight;
+        private double _pageWidth;
+        private string _currentPdfPath;
+        private int _currentPage = 1;
+        private int _totalPages = 0;
 
         public MainWindow()
         {
@@ -31,6 +35,7 @@ namespace PdfToGCode.App.Views
             _pdfLoader = new PdfLoader();
             _sceneRenderer = new VectorSceneRenderer();
             LoadFont();
+            UpdatePageControls();
         }
 
         private void LoadFont()
@@ -38,15 +43,12 @@ namespace PdfToGCode.App.Views
             try
             {
                 var assembly = typeof(SvgFontParser).Assembly;
-                // Resource name might vary. Usually AssemblyName.Folder.File
-                // Checking default namespace of Core project.
                 var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
 
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
                 {
                     if (stream == null)
                     {
-                        // Try finding resource
                         var resources = assembly.GetManifestResourceNames();
                         var found = resources.FirstOrDefault(r => r.EndsWith("CHUINHOA.svg"));
                         if (found != null)
@@ -81,57 +83,96 @@ namespace PdfToGCode.App.Views
             }
         }
 
+        private void UpdatePageControls()
+        {
+            btnPrevPage.IsEnabled = _currentPage > 1;
+            btnNextPage.IsEnabled = _currentPage < _totalPages;
+            txtPageInfo.Text = _totalPages > 0 ? $"Page {_currentPage} / {_totalPages}" : "Page 0 / 0";
+        }
+
+        private void LoadPage(int pageNumber)
+        {
+            if (string.IsNullOrEmpty(_currentPdfPath) || pageNumber < 1 || pageNumber > _totalPages) return;
+
+            try
+            {
+                var result = _pdfLoader.Load(_currentPdfPath, pageNumber);
+
+                canvasPdf.Children.Clear();
+                canvasPdf.Reset();
+
+                if (result.Image != null)
+                {
+                    var img = new Image
+                    {
+                        Source = result.Image,
+                        Stretch = System.Windows.Media.Stretch.None
+                    };
+                    canvasPdf.Children.Add(img);
+                }
+
+                _extractedText = result.Text;
+                _pageHeight = result.Height;
+                _pageWidth = result.Width;
+                _currentPage = pageNumber;
+                _totalPages = result.TotalPages; // Should be consistent, but safe to update
+
+                if (_extractedText.Count == 0 && _totalPages > 0)
+                {
+                     // MessageBox.Show("Warning: No text extracted from this page.");
+                     // Annoying if navigating fast. Maybe status bar?
+                }
+
+                // Clear vector preview on page change
+                canvasPreview.Children.Clear();
+                canvasPreview.Reset();
+                _loadedGCode = null;
+
+                UpdatePageControls();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error loading page {pageNumber}: {ex.Message}");
+            }
+        }
+
         private void btnImport_Click(object sender, RoutedEventArgs e)
         {
             var dlg = new OpenFileDialog();
             dlg.Filter = "PDF Files (*.pdf)|*.pdf";
             if (dlg.ShowDialog() == true)
             {
+                _currentPdfPath = dlg.FileName;
+                _currentPage = 1;
+                // Use Load to get initial total pages
                 try
                 {
-                    var result = _pdfLoader.Load(dlg.FileName, 1); // Load page 1 for now
-
-                    canvasPdf.Children.Clear();
-                    canvasPdf.Reset();
-
-                    if (result.Image != null)
-                    {
-                        var img = new Image
-                        {
-                            Source = result.Image,
-                            Stretch = System.Windows.Media.Stretch.None
-                        };
-                        // Add image to ZoomPanCanvas
-                        canvasPdf.Children.Add(img);
-                        // Optionally center or fit?
-                        // For now, it will be at (0,0)
-                    }
-
-                    _extractedText = result.Text;
-                    if (_extractedText.Count == 0)
-                    {
-                         MessageBox.Show("Warning: No text extracted from PDF. This might be an image-only PDF.");
-                    }
-
-                    _pageHeight = result.Height;
-
-                    // Clear vector preview
-                    canvasPreview.Children.Clear();
-                    canvasPreview.Reset();
-                    _loadedGCode = null;
+                    var result = _pdfLoader.Load(_currentPdfPath, 1);
+                    _totalPages = result.TotalPages;
+                    LoadPage(1);
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error loading PDF: {ex.Message}");
+                     MessageBox.Show($"Error opening PDF: {ex.Message}");
                 }
             }
         }
 
+        private void btnPrevPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage > 1) LoadPage(_currentPage - 1);
+        }
+
+        private void btnNextPage_Click(object sender, RoutedEventArgs e)
+        {
+            if (_currentPage < _totalPages) LoadPage(_currentPage + 1);
+        }
+
         private void btnVectorize_Click(object sender, RoutedEventArgs e)
         {
-            if (_extractedText == null || _extractedText.Count == 0)
+            if (_extractedText == null)
             {
-                MessageBox.Show("Please import a PDF with text first.");
+                MessageBox.Show("Please import a PDF first.");
                 return;
             }
 
@@ -143,7 +184,7 @@ namespace PdfToGCode.App.Views
 
             try
             {
-                _sceneRenderer.RenderScene(canvasPreview, _extractedText, _fontData, _pageHeight);
+                _sceneRenderer.RenderScene(canvasPreview, _extractedText, _fontData, _pageHeight, _pageWidth);
             }
             catch (Exception ex)
             {
@@ -153,9 +194,9 @@ namespace PdfToGCode.App.Views
 
         private void btnGenerate_Click(object sender, RoutedEventArgs e)
         {
-            if (_extractedText == null || _extractedText.Count == 0)
+            if (_extractedText == null)
             {
-                MessageBox.Show("Please import a PDF with text first.");
+                MessageBox.Show("Please import a PDF first.");
                 return;
             }
 
