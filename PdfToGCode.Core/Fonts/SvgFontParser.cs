@@ -70,8 +70,8 @@ namespace PdfToGCode.Core.Fonts
             var strokes = new List<List<PdfPoint>>();
             if (string.IsNullOrWhiteSpace(d)) return strokes;
 
-            // Updated Regex to support case-insensitive M and L, and handle subsequent coordinates.
-            // Matches: [Mm] or [Ll], followed by coordinates.
+            // Updated Regex to robustly capture commands and their arguments
+            // This captures a letter (command) followed by anything that isn't a letter
             var matches = Regex.Matches(d, @"([MmLl])\s*([^MmLl]*)");
 
             List<PdfPoint> currentStroke = null;
@@ -81,30 +81,34 @@ namespace PdfToGCode.Core.Fonts
                 var type = char.ToUpper(match.Groups[1].Value[0]); // Normalize to uppercase
                 var coordsPart = match.Groups[2].Value.Trim();
 
-                // Parse coordinates
+                // Parse coordinates - handle various separators
                 var coords = coordsPart.Split(new[] { ' ', ',', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
                                        .Select(s => double.TryParse(s, out double v) ? v : (double?)null)
                                        .Where(v => v.HasValue)
                                        .Select(v => v.Value)
                                        .ToList();
 
-                // Expecting pairs
+                // Expecting pairs (x, y)
                 for (int i = 0; i < coords.Count - 1; i += 2)
                 {
                     var point = new PdfPoint(coords[i], coords[i + 1]);
 
                     if (type == 'M')
                     {
+                        // Start a new stroke (Move To)
                         currentStroke = new List<PdfPoint>();
                         strokes.Add(currentStroke);
                         currentStroke.Add(point);
-                        // Subsequent points in M command are treated as L (implicit line-to)
+
+                        // Subsequent pairs in M command are treated as L (implicit Line To)
                         type = 'L';
                     }
                     else if (type == 'L')
                     {
+                        // Continue current stroke (Line To)
                         if (currentStroke == null)
                         {
+                            // If L appears without prior M, start a new stroke (robustness)
                             currentStroke = new List<PdfPoint>();
                             strokes.Add(currentStroke);
                         }

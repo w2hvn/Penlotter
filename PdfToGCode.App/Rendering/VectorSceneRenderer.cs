@@ -27,17 +27,12 @@ namespace PdfToGCode.App.Rendering
 
             if (textBlocks == null || textBlocks.Count == 0 || fontData == null) return;
 
-            // If pageHeight is weird (e.g. 0), we might have issues.
-            // But PdfLoader returns 0 on failure, so we shouldn't be here if checks passed.
-
             var pathGeometry = new PathGeometry();
 
             foreach (var block in textBlocks)
             {
                 foreach (var glyph in block.Glyphs)
                 {
-                    // Render glyph strokes
-                    // Using glyph.Origin (Baseline) for positioning
                     var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
 
                     if (strokes == null) continue;
@@ -46,7 +41,6 @@ namespace PdfToGCode.App.Rendering
                     {
                         if (stroke.Count < 2) continue;
 
-                        // Start point
                         var startPdf = stroke[0];
                         var startCanvas = CoordinateMapper.ConvertPdfToCanvas(startPdf, pageHeight);
                         var startPoint = new System.Windows.Point(startCanvas.X, startCanvas.Y);
@@ -54,7 +48,7 @@ namespace PdfToGCode.App.Rendering
                         var figure = new PathFigure
                         {
                             StartPoint = startPoint,
-                            IsClosed = false // Single line font usually not closed
+                            IsClosed = false // Single-line font
                         };
 
                         var segment = new PolyLineSegment();
@@ -76,16 +70,10 @@ namespace PdfToGCode.App.Rendering
                 var path = new Path
                 {
                     Data = pathGeometry,
-                    Stroke = Brushes.Blue,
-                    StrokeThickness = 1
+                    Stroke = Brushes.Red,     // Changed to Red as requested
+                    StrokeThickness = 0.5     // Thinner stroke for better detail
                 };
                 canvas.Children.Add(path);
-            }
-            else
-            {
-                // Warn if nothing generated but text existed?
-                // Might happen if font lacks glyphs for the text.
-                // Could add a visual indicator or label?
             }
         }
     }

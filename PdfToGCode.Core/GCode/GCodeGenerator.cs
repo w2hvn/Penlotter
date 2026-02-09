@@ -24,12 +24,11 @@ namespace PdfToGCode.Core.GCode
             // Sort logic: Top to Bottom, Left to Right
             // Group by approximate Y to handle slight misalignment
             // 5 points tolerance ~ 1.76mm
-            // Using BottomLeft for sorting is acceptable, but Origin Y (baseline) is also good.
-            // BottomLeft Y is bottom of BBox. Origin Y is baseline.
-            // Let's stick to BottomLeft for sorting as it represents physical location better if glyphs vary.
+            // Using Origin (Baseline) for sorting is much better than BottomLeft,
+            // because descenders (g, y, p, q, j) have lower BottomLeft than baseline.
             var sortedGlyphs = allGlyphs
-                .OrderByDescending(g => Math.Round(g.BottomLeft.Y / 5.0) * 5.0)
-                .ThenBy(g => g.BottomLeft.X)
+                .OrderByDescending(g => Math.Round(g.Origin.Y / 5.0) * 5.0)
+                .ThenBy(g => g.Origin.X)
                 .ToList();
 
             foreach (var glyph in sortedGlyphs)
