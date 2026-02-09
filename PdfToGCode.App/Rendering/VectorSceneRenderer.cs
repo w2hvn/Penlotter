@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -24,7 +25,10 @@ namespace PdfToGCode.App.Rendering
             canvas.Children.Clear();
             canvas.Reset();
 
-            if (textBlocks == null || fontData == null) return;
+            if (textBlocks == null || textBlocks.Count == 0 || fontData == null) return;
+
+            // If pageHeight is weird (e.g. 0), we might have issues.
+            // But PdfLoader returns 0 on failure, so we shouldn't be here if checks passed.
 
             var pathGeometry = new PathGeometry();
 
@@ -33,6 +37,7 @@ namespace PdfToGCode.App.Rendering
                 foreach (var glyph in block.Glyphs)
                 {
                     // Render glyph strokes
+                    // Using glyph.Origin (Baseline) for positioning
                     var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
 
                     if (strokes == null) continue;
@@ -49,7 +54,7 @@ namespace PdfToGCode.App.Rendering
                         var figure = new PathFigure
                         {
                             StartPoint = startPoint,
-                            IsClosed = false // Single line font usually not closed, but can be
+                            IsClosed = false // Single line font usually not closed
                         };
 
                         var segment = new PolyLineSegment();
@@ -75,6 +80,12 @@ namespace PdfToGCode.App.Rendering
                     StrokeThickness = 1
                 };
                 canvas.Children.Add(path);
+            }
+            else
+            {
+                // Warn if nothing generated but text existed?
+                // Might happen if font lacks glyphs for the text.
+                // Could add a visual indicator or label?
             }
         }
     }

@@ -30,19 +30,16 @@
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <!-- Left Panel: PDF Preview -->
-            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Margin="5">
-                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Auto">
-                    <Image Name="imgPdfPreview" Stretch="None"/>
-                </ScrollViewer>
+            <!-- Left Panel: PDF Preview (Zoom/Pan) -->
+            <Border Grid.Column="0" BorderBrush="Gray" BorderThickness="1" Margin="5" ClipToBounds="True">
+                <rendering:ZoomPanCanvas x:Name="canvasPdf" Background="LightGray"/>
             </Border>
 
             <!-- Splitter -->
             <GridSplitter Grid.Column="1" Width="5" HorizontalAlignment="Stretch"/>
 
-            <!-- Right Panel: Vector Preview -->
+            <!-- Right Panel: Vector Preview (Zoom/Pan) -->
             <Border Grid.Column="2" BorderBrush="Gray" BorderThickness="1" Margin="5" ClipToBounds="True">
-                <!-- Using ZoomPanCanvas -->
                 <rendering:ZoomPanCanvas x:Name="canvasPreview" Background="White"/>
             </Border>
         </Grid>

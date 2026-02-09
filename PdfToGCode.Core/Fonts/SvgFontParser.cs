@@ -24,7 +24,6 @@ namespace PdfToGCode.Core.Fonts
                 return fontData;
             }
 
-            // Handle namespace if present, but simpler to use LocalName
             var fontElement = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "font");
             if (fontElement == null) return fontData;
 
@@ -43,10 +42,8 @@ namespace PdfToGCode.Core.Fonts
             foreach (var glyph in fontElement.Descendants().Where(e => e.Name.LocalName == "glyph"))
             {
                 var unicodeStr = glyph.Attribute("unicode")?.Value;
-                // Allow space even if path is empty
                 if (string.IsNullOrEmpty(unicodeStr)) continue;
 
-                // Handle single char
                 if (unicodeStr.Length != 1) continue;
 
                 var unicode = unicodeStr[0];
@@ -73,15 +70,15 @@ namespace PdfToGCode.Core.Fonts
             var strokes = new List<List<PdfPoint>>();
             if (string.IsNullOrWhiteSpace(d)) return strokes;
 
-            // Split by M or L, keeping the delimiter.
-            // Using a simple regex that matches M or L followed by anything until next M or L
-            var matches = Regex.Matches(d, @"([ML])\s*([^ML]*)");
+            // Updated Regex to support case-insensitive M and L, and handle subsequent coordinates.
+            // Matches: [Mm] or [Ll], followed by coordinates.
+            var matches = Regex.Matches(d, @"([MmLl])\s*([^MmLl]*)");
 
             List<PdfPoint> currentStroke = null;
 
             foreach (Match match in matches)
             {
-                var type = match.Groups[1].Value[0];
+                var type = char.ToUpper(match.Groups[1].Value[0]); // Normalize to uppercase
                 var coordsPart = match.Groups[2].Value.Trim();
 
                 // Parse coordinates

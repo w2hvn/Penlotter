@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using PdfToGCode.App.Pdf;
@@ -38,6 +39,7 @@ namespace PdfToGCode.App.Views
             {
                 var assembly = typeof(SvgFontParser).Assembly;
                 // Resource name might vary. Usually AssemblyName.Folder.File
+                // Checking default namespace of Core project.
                 var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
 
                 using (var stream = assembly.GetManifestResourceStream(resourceName))
@@ -59,7 +61,7 @@ namespace PdfToGCode.App.Views
                         }
                         else
                         {
-                            MessageBox.Show("Could not find font resource CHUINHOA.svg");
+                            MessageBox.Show("Could not find font resource CHUINHOA.svg. Please ensure it is embedded in PdfToGCode.Core.");
                         }
                     }
                     else
@@ -88,12 +90,29 @@ namespace PdfToGCode.App.Views
                 try
                 {
                     var result = _pdfLoader.Load(dlg.FileName, 1); // Load page 1 for now
+
+                    canvasPdf.Children.Clear();
+                    canvasPdf.Reset();
+
                     if (result.Image != null)
                     {
-                        imgPdfPreview.Source = result.Image;
+                        var img = new Image
+                        {
+                            Source = result.Image,
+                            Stretch = System.Windows.Media.Stretch.None
+                        };
+                        // Add image to ZoomPanCanvas
+                        canvasPdf.Children.Add(img);
+                        // Optionally center or fit?
+                        // For now, it will be at (0,0)
                     }
 
                     _extractedText = result.Text;
+                    if (_extractedText.Count == 0)
+                    {
+                         MessageBox.Show("Warning: No text extracted from PDF. This might be an image-only PDF.");
+                    }
+
                     _pageHeight = result.Height;
 
                     // Clear vector preview
@@ -112,7 +131,7 @@ namespace PdfToGCode.App.Views
         {
             if (_extractedText == null || _extractedText.Count == 0)
             {
-                MessageBox.Show("Please import a PDF first.");
+                MessageBox.Show("Please import a PDF with text first.");
                 return;
             }
 
@@ -136,7 +155,7 @@ namespace PdfToGCode.App.Views
         {
             if (_extractedText == null || _extractedText.Count == 0)
             {
-                MessageBox.Show("Please import a PDF first.");
+                MessageBox.Show("Please import a PDF with text first.");
                 return;
             }
 
