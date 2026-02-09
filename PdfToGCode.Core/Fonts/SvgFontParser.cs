@@ -24,6 +24,7 @@ namespace PdfToGCode.Core.Fonts
                 return fontData;
             }
 
+            // Handle namespace if present, but simpler to use LocalName
             var fontElement = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "font");
             if (fontElement == null) return fontData;
 
@@ -42,14 +43,18 @@ namespace PdfToGCode.Core.Fonts
             foreach (var glyph in fontElement.Descendants().Where(e => e.Name.LocalName == "glyph"))
             {
                 var unicodeStr = glyph.Attribute("unicode")?.Value;
-                if (string.IsNullOrEmpty(unicodeStr) || unicodeStr.Length != 1) continue;
+                // Allow space even if path is empty
+                if (string.IsNullOrEmpty(unicodeStr)) continue;
+
+                // Handle single char
+                if (unicodeStr.Length != 1) continue;
 
                 var unicode = unicodeStr[0];
                 var advXStr = glyph.Attribute("horiz-adv-x")?.Value;
                 double advX = defaultAdvX;
                 if (double.TryParse(advXStr, out double gVal)) advX = gVal;
 
-                var d = glyph.Attribute("d")?.Value;
+                var d = glyph.Attribute("d")?.Value ?? string.Empty;
 
                 var strokes = ParsePath(d);
                 fontData.Glyphs[unicode] = new GlyphGeometry
@@ -68,40 +73,46 @@ namespace PdfToGCode.Core.Fonts
             var strokes = new List<List<PdfPoint>>();
             if (string.IsNullOrWhiteSpace(d)) return strokes;
 
-            var commands = Regex.Split(d, @"(?=[ML])").Where(s => !string.IsNullOrWhiteSpace(s));
+            // Split by M or L, keeping the delimiter.
+            // Using a simple regex that matches M or L followed by anything until next M or L
+            var matches = Regex.Matches(d, @"([ML])\s*([^ML]*)");
 
             List<PdfPoint> currentStroke = null;
 
-            foreach (var cmd in commands)
+            foreach (Match match in matches)
             {
-                var trimmed = cmd.Trim();
-                if (trimmed.Length == 0) continue;
+                var type = match.Groups[1].Value[0];
+                var coordsPart = match.Groups[2].Value.Trim();
 
-                var type = trimmed[0];
-                var coordsPart = trimmed.Substring(1).Trim();
-                var coords = coordsPart.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+                // Parse coordinates
+                var coords = coordsPart.Split(new[] { ' ', ',', '\t', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries)
+                                       .Select(s => double.TryParse(s, out double v) ? v : (double?)null)
+                                       .Where(v => v.HasValue)
+                                       .Select(v => v.Value)
+                                       .ToList();
 
-                if (coords.Length < 2) continue;
-
-                if (!double.TryParse(coords[0], out double x) || !double.TryParse(coords[1], out double y))
-                    continue;
-
-                var point = new PdfPoint(x, y);
-
-                if (type == 'M')
+                // Expecting pairs
+                for (int i = 0; i < coords.Count - 1; i += 2)
                 {
-                    currentStroke = new List<PdfPoint>();
-                    strokes.Add(currentStroke);
-                    currentStroke.Add(point);
-                }
-                else if (type == 'L')
-                {
-                    if (currentStroke == null)
+                    var point = new PdfPoint(coords[i], coords[i + 1]);
+
+                    if (type == 'M')
                     {
                         currentStroke = new List<PdfPoint>();
                         strokes.Add(currentStroke);
+                        currentStroke.Add(point);
+                        // Subsequent points in M command are treated as L (implicit line-to)
+                        type = 'L';
                     }
-                    currentStroke.Add(point);
+                    else if (type == 'L')
+                    {
+                        if (currentStroke == null)
+                        {
+                            currentStroke = new List<PdfPoint>();
+                            strokes.Add(currentStroke);
+                        }
+                        currentStroke.Add(point);
+                    }
                 }
             }
 

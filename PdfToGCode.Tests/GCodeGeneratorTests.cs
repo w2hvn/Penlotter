@@ -35,6 +35,7 @@ namespace PdfToGCode.Tests
             {
                 Character = 'A',
                 BottomLeft = new PdfPoint(100, 100), // PDF units (points)
+                Origin = new PdfPoint(100, 100), // PDF units (points) - Using Origin for generation
                 FontSize = 10,
                 Width = 6,
                 Height = 10

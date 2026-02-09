@@ -24,6 +24,9 @@ namespace PdfToGCode.Core.GCode
             // Sort logic: Top to Bottom, Left to Right
             // Group by approximate Y to handle slight misalignment
             // 5 points tolerance ~ 1.76mm
+            // Using BottomLeft for sorting is acceptable, but Origin Y (baseline) is also good.
+            // BottomLeft Y is bottom of BBox. Origin Y is baseline.
+            // Let's stick to BottomLeft for sorting as it represents physical location better if glyphs vary.
             var sortedGlyphs = allGlyphs
                 .OrderByDescending(g => Math.Round(g.BottomLeft.Y / 5.0) * 5.0)
                 .ThenBy(g => g.BottomLeft.X)
@@ -46,14 +49,15 @@ namespace PdfToGCode.Core.GCode
                     if (stroke.Count == 0) continue;
 
                     // Move to start of stroke
-                    var start = Transform(stroke[0], scale, glyph.BottomLeft);
+                    // Use Origin (StartBaseLine) as the anchor point
+                    var start = Transform(stroke[0], scale, glyph.Origin);
 
                     sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
                     sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
 
                     for (int i = 1; i < stroke.Count; i++)
                     {
-                        var point = Transform(stroke[i], scale, glyph.BottomLeft);
+                        var point = Transform(stroke[i], scale, glyph.Origin);
                         sb.AppendLine($"G1 X{point.X:F3} Y{point.Y:F3}");
                     }
 
@@ -69,9 +73,11 @@ namespace PdfToGCode.Core.GCode
         {
             // fontPoint: coordinates in font units
             // scale: scaling factor to convert font units to PDF points
-            // originPdf: position of the glyph in PDF points
+            // originPdf: position of the glyph in PDF points (baseline origin)
 
             // Calculate position in PDF points
+            // fontPoint.Y is relative to baseline (positive up)
+            // originPdf.Y is baseline Y in PDF coords (positive up)
             double xPoints = fontPoint.X * scale + originPdf.X;
             double yPoints = fontPoint.Y * scale + originPdf.Y;
 
