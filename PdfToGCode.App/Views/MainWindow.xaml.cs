@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media.Imaging;
@@ -28,6 +29,8 @@ namespace PdfToGCode.App.Views
         private string _currentPdfPath;
         private int _currentPage = 1;
         private int _totalPages = 0;
+        private List<int> _selectedPages = new List<int>();
+        private int _currentSelectionIndex = 0;
 
         public MainWindow()
         {
@@ -85,9 +88,18 @@ namespace PdfToGCode.App.Views
 
         private void UpdatePageControls()
         {
-            btnPrevPage.IsEnabled = _currentPage > 1;
-            btnNextPage.IsEnabled = _currentPage < _totalPages;
-            txtPageInfo.Text = _totalPages > 0 ? $"Page {_currentPage} / {_totalPages}" : "Page 0 / 0";
+            btnPrevPage.IsEnabled = _selectedPages.Count > 1 && _currentSelectionIndex > 0;
+            btnNextPage.IsEnabled = _selectedPages.Count > 1 && _currentSelectionIndex < _selectedPages.Count - 1;
+
+            if (_totalPages > 0 && _selectedPages.Count > 0)
+            {
+                int displayedPage = _selectedPages[_currentSelectionIndex];
+                txtPageInfo.Text = $"Page {displayedPage} / {_totalPages} (Item {_currentSelectionIndex + 1}/{_selectedPages.Count})";
+            }
+            else
+            {
+                txtPageInfo.Text = "Page 0 / 0";
+            }
         }
 
         private void LoadPage(int pageNumber)
@@ -115,15 +127,7 @@ namespace PdfToGCode.App.Views
                 _pageHeight = result.Height;
                 _pageWidth = result.Width;
                 _currentPage = pageNumber;
-                _totalPages = result.TotalPages; // Should be consistent, but safe to update
 
-                if (_extractedText.Count == 0 && _totalPages > 0)
-                {
-                     // MessageBox.Show("Warning: No text extracted from this page.");
-                     // Annoying if navigating fast. Maybe status bar?
-                }
-
-                // Clear vector preview on page change
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
                 _loadedGCode = null;
@@ -143,12 +147,18 @@ namespace PdfToGCode.App.Views
             if (dlg.ShowDialog() == true)
             {
                 _currentPdfPath = dlg.FileName;
-                _currentPage = 1;
-                // Use Load to get initial total pages
+
                 try
                 {
                     var result = _pdfLoader.Load(_currentPdfPath, 1);
                     _totalPages = result.TotalPages;
+
+                    _selectedPages.Clear();
+                    for(int i=1; i<=_totalPages; i++) _selectedPages.Add(i);
+                    _currentSelectionIndex = 0;
+
+                    txtPageRange.Text = $"1-{_totalPages}";
+
                     LoadPage(1);
                 }
                 catch (Exception ex)
@@ -158,14 +168,47 @@ namespace PdfToGCode.App.Views
             }
         }
 
+        private void btnSetRange_Click(object sender, RoutedEventArgs e)
+        {
+            if (_totalPages == 0) return;
+
+            string rangeText = txtPageRange.Text;
+            try
+            {
+                var parsed = PageRangeParser.Parse(rangeText, _totalPages);
+                if (parsed.Count > 0)
+                {
+                    _selectedPages = parsed;
+                    _currentSelectionIndex = 0;
+                    LoadPage(_selectedPages[0]);
+                }
+                else
+                {
+                    MessageBox.Show("Invalid page range or no pages in range.");
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Error parsing range: {ex.Message}");
+            }
+        }
+
         private void btnPrevPage_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentPage > 1) LoadPage(_currentPage - 1);
+            if (_selectedPages.Count > 0 && _currentSelectionIndex > 0)
+            {
+                _currentSelectionIndex--;
+                LoadPage(_selectedPages[_currentSelectionIndex]);
+            }
         }
 
         private void btnNextPage_Click(object sender, RoutedEventArgs e)
         {
-            if (_currentPage < _totalPages) LoadPage(_currentPage + 1);
+             if (_selectedPages.Count > 0 && _currentSelectionIndex < _selectedPages.Count - 1)
+            {
+                _currentSelectionIndex++;
+                LoadPage(_selectedPages[_currentSelectionIndex]);
+            }
         }
 
         private void btnVectorize_Click(object sender, RoutedEventArgs e)
@@ -194,7 +237,7 @@ namespace PdfToGCode.App.Views
 
         private void btnGenerate_Click(object sender, RoutedEventArgs e)
         {
-            if (_extractedText == null)
+            if (string.IsNullOrEmpty(_currentPdfPath) || _selectedPages.Count == 0)
             {
                 MessageBox.Show("Please import a PDF first.");
                 return;
@@ -208,11 +251,38 @@ namespace PdfToGCode.App.Views
 
             try
             {
-                var settings = new GCodeSettings(); // Use default settings for now
+                var settings = new GCodeSettings();
                 var generator = new GCodeGenerator();
-                _loadedGCode = generator.Generate(_extractedText, _fontData, settings);
+                var extractor = new PdfTextLayoutExtractor();
+                var pageCodes = new List<string>();
 
-                MessageBox.Show("G-code generated successfully!");
+                foreach(var pageNum in _selectedPages)
+                {
+                    var (text, _, _) = extractor.ExtractPage(_currentPdfPath, pageNum);
+
+                    if (text.Count > 0)
+                    {
+                        var gcode = generator.Generate(text, _fontData, settings);
+
+                        // Strip final M2/M30
+                        gcode = gcode.TrimEnd();
+                        if (gcode.EndsWith("M2")) gcode = gcode.Substring(0, gcode.Length - 2);
+                        else if (gcode.EndsWith("M30")) gcode = gcode.Substring(0, gcode.Length - 3);
+
+                        pageCodes.Add($"(Page {pageNum})\n" + gcode.Trim());
+                    }
+                }
+
+                if (pageCodes.Count > 0)
+                {
+                    // Join with M0 (Pause) and add final M2
+                    _loadedGCode = string.Join("\nM0\n", pageCodes) + "\nM2";
+                    MessageBox.Show($"G-code generated for {_selectedPages.Count} pages!");
+                }
+                else
+                {
+                     MessageBox.Show("No text found on selected pages.");
+                }
             }
             catch (Exception ex)
             {
