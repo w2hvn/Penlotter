@@ -1,0 +1,11 @@
+<svg>
+  <defs>
+    <font horiz-adv-x="1000">
+      <font-face units-per-em="1000" ascent="800" descent="-200"/>
+      <glyph unicode="A" horiz-adv-x="600"
+             d="M100 0 L300 800 L500 0 M180 300 L420 300"/>
+      <glyph unicode=" " horiz-adv-x="300"/>
+      <glyph unicode="B" horiz-adv-x="600" d="M100 0 L100 800 L400 800 L400 500 L100 500 L400 500 L400 0 L100 0"/>
+    </font>
+  </defs>
+</svg>
