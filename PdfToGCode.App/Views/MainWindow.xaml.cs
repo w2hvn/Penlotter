@@ -6,7 +6,9 @@ using System.Reflection;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Shapes;
 using Microsoft.Win32;
 using PdfToGCode.App.Pdf;
 using PdfToGCode.App.Rendering;
@@ -14,6 +16,7 @@ using PdfToGCode.Core.Fonts;
 using PdfToGCode.Core.GCode;
 using PdfToGCode.Core.Pdf;
 using PdfToGCode.Core.Utils;
+using Path = System.IO.Path;
 
 namespace PdfToGCode.App.Views
 {
@@ -21,16 +24,13 @@ namespace PdfToGCode.App.Views
     {
         private PdfLoader _pdfLoader;
         private VectorSceneRenderer _sceneRenderer;
-        private List<ExtractedText> _extractedText;
+        private List<PageData> _loadedPages = new List<PageData>();
         private FontData _fontData;
-        private string _loadedGCode;
-        private double _pageHeight;
-        private double _pageWidth;
+        private Dictionary<int, string> _generatedGCode = new Dictionary<int, string>();
+
         private string _currentPdfPath;
-        private int _currentPage = 1;
         private int _totalPages = 0;
         private List<int> _selectedPages = new List<int>();
-        private int _currentSelectionIndex = 0;
 
         public MainWindow()
         {
@@ -38,7 +38,11 @@ namespace PdfToGCode.App.Views
             _pdfLoader = new PdfLoader();
             _sceneRenderer = new VectorSceneRenderer();
             LoadFont();
-            UpdatePageControls();
+            txtPageInfo.Text = "No PDF loaded";
+
+            // Hide navigation buttons as we now show all selected pages
+            btnPrevPage.Visibility = Visibility.Collapsed;
+            btnNextPage.Visibility = Visibility.Collapsed;
         }
 
         private void LoadFont()
@@ -66,7 +70,7 @@ namespace PdfToGCode.App.Views
                         }
                         else
                         {
-                            MessageBox.Show("Could not find font resource CHUINHOA.svg. Please ensure it is embedded in PdfToGCode.Core.");
+                            MessageBox.Show("Could not find font resource CHUINHOA.svg.");
                         }
                     }
                     else
@@ -86,57 +90,78 @@ namespace PdfToGCode.App.Views
             }
         }
 
-        private void UpdatePageControls()
+        private void LoadSelectedPages()
         {
-            btnPrevPage.IsEnabled = _selectedPages.Count > 1 && _currentSelectionIndex > 0;
-            btnNextPage.IsEnabled = _selectedPages.Count > 1 && _currentSelectionIndex < _selectedPages.Count - 1;
-
-            if (_totalPages > 0 && _selectedPages.Count > 0)
-            {
-                int displayedPage = _selectedPages[_currentSelectionIndex];
-                txtPageInfo.Text = $"Page {displayedPage} / {_totalPages} (Item {_currentSelectionIndex + 1}/{_selectedPages.Count})";
-            }
-            else
-            {
-                txtPageInfo.Text = "Page 0 / 0";
-            }
-        }
-
-        private void LoadPage(int pageNumber)
-        {
-            if (string.IsNullOrEmpty(_currentPdfPath) || pageNumber < 1 || pageNumber > _totalPages) return;
+            if (string.IsNullOrEmpty(_currentPdfPath) || _selectedPages.Count == 0) return;
 
             try
             {
-                var result = _pdfLoader.Load(_currentPdfPath, pageNumber);
-
                 canvasPdf.Children.Clear();
                 canvasPdf.Reset();
 
-                if (result.Image != null)
-                {
-                    var img = new Image
-                    {
-                        Source = result.Image,
-                        Stretch = System.Windows.Media.Stretch.None
-                    };
-                    canvasPdf.Children.Add(img);
-                }
+                _loadedPages.Clear();
+                _generatedGCode.Clear();
 
-                _extractedText = result.Text;
-                _pageHeight = result.Height;
-                _pageWidth = result.Width;
-                _currentPage = pageNumber;
+                double currentX = 50;
+                double margin = 50;
+
+                // Load all selected pages and display side-by-side
+                foreach (var pageNum in _selectedPages)
+                {
+                    var result = _pdfLoader.Load(_currentPdfPath, pageNum);
+
+                    if (result.Image != null)
+                    {
+                        var border = new Border
+                        {
+                            BorderBrush = Brushes.Black,
+                            BorderThickness = new Thickness(1),
+                            Child = new Image
+                            {
+                                Source = result.Image,
+                                Stretch = Stretch.None
+                            }
+                        };
+
+                        Canvas.SetLeft(border, currentX);
+                        Canvas.SetTop(border, 0);
+                        canvasPdf.Children.Add(border);
+
+                        var label = new TextBlock
+                        {
+                            Text = $"Page {pageNum}",
+                            Foreground = Brushes.Black,
+                            FontSize = 14,
+                            FontWeight = FontWeights.Bold
+                        };
+                        Canvas.SetLeft(label, currentX);
+                        Canvas.SetTop(label, -25);
+                        canvasPdf.Children.Add(label);
+
+                        currentX += result.Image.Width + margin;
+                    }
+                    else
+                    {
+                        currentX += 500 + margin; // Fallback
+                    }
+
+                    _loadedPages.Add(new PageData
+                    {
+                        PageNumber = pageNum,
+                        Width = result.Width,
+                        Height = result.Height,
+                        TextBlocks = result.Text
+                    });
+                }
 
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
-                _loadedGCode = null;
 
-                UpdatePageControls();
+                txtPageInfo.Text = $"Showing {_selectedPages.Count} pages";
             }
             catch (Exception ex)
             {
-                MessageBox.Show($"Error loading page {pageNumber}: {ex.Message}");
+                MessageBox.Show($"Error loading pages: {ex.Message}");
             }
         }
 
@@ -155,11 +180,10 @@ namespace PdfToGCode.App.Views
 
                     _selectedPages.Clear();
                     for(int i=1; i<=_totalPages; i++) _selectedPages.Add(i);
-                    _currentSelectionIndex = 0;
 
                     txtPageRange.Text = $"1-{_totalPages}";
 
-                    LoadPage(1);
+                    LoadSelectedPages();
                 }
                 catch (Exception ex)
                 {
@@ -179,8 +203,7 @@ namespace PdfToGCode.App.Views
                 if (parsed.Count > 0)
                 {
                     _selectedPages = parsed;
-                    _currentSelectionIndex = 0;
-                    LoadPage(_selectedPages[0]);
+                    LoadSelectedPages();
                 }
                 else
                 {
@@ -193,27 +216,12 @@ namespace PdfToGCode.App.Views
             }
         }
 
-        private void btnPrevPage_Click(object sender, RoutedEventArgs e)
-        {
-            if (_selectedPages.Count > 0 && _currentSelectionIndex > 0)
-            {
-                _currentSelectionIndex--;
-                LoadPage(_selectedPages[_currentSelectionIndex]);
-            }
-        }
-
-        private void btnNextPage_Click(object sender, RoutedEventArgs e)
-        {
-             if (_selectedPages.Count > 0 && _currentSelectionIndex < _selectedPages.Count - 1)
-            {
-                _currentSelectionIndex++;
-                LoadPage(_selectedPages[_currentSelectionIndex]);
-            }
-        }
+        private void btnPrevPage_Click(object sender, RoutedEventArgs e) { }
+        private void btnNextPage_Click(object sender, RoutedEventArgs e) { }
 
         private void btnVectorize_Click(object sender, RoutedEventArgs e)
         {
-            if (_extractedText == null)
+            if (_loadedPages.Count == 0)
             {
                 MessageBox.Show("Please import a PDF first.");
                 return;
@@ -227,7 +235,7 @@ namespace PdfToGCode.App.Views
 
             try
             {
-                _sceneRenderer.RenderScene(canvasPreview, _extractedText, _fontData, _pageHeight, _pageWidth);
+                _sceneRenderer.RenderScene(canvasPreview, _loadedPages, _fontData);
             }
             catch (Exception ex)
             {
@@ -237,9 +245,9 @@ namespace PdfToGCode.App.Views
 
         private void btnGenerate_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_currentPdfPath) || _selectedPages.Count == 0)
+            if (_loadedPages.Count == 0)
             {
-                MessageBox.Show("Please import a PDF first.");
+                MessageBox.Show("Please load pages first.");
                 return;
             }
 
@@ -253,31 +261,21 @@ namespace PdfToGCode.App.Views
             {
                 var settings = new GCodeSettings();
                 var generator = new GCodeGenerator();
-                var extractor = new PdfTextLayoutExtractor();
-                var pageCodes = new List<string>();
 
-                foreach(var pageNum in _selectedPages)
+                _generatedGCode.Clear();
+
+                foreach(var page in _loadedPages)
                 {
-                    var (text, _, _) = extractor.ExtractPage(_currentPdfPath, pageNum);
-
-                    if (text.Count > 0)
+                    if (page.TextBlocks.Count > 0)
                     {
-                        var gcode = generator.Generate(text, _fontData, settings);
-
-                        // Strip final M2/M30
-                        gcode = gcode.TrimEnd();
-                        if (gcode.EndsWith("M2")) gcode = gcode.Substring(0, gcode.Length - 2);
-                        else if (gcode.EndsWith("M30")) gcode = gcode.Substring(0, gcode.Length - 3);
-
-                        pageCodes.Add($"(Page {pageNum})\n" + gcode.Trim());
+                        var gcode = generator.Generate(page.TextBlocks, _fontData, settings);
+                        _generatedGCode[page.PageNumber] = gcode;
                     }
                 }
 
-                if (pageCodes.Count > 0)
+                if (_generatedGCode.Count > 0)
                 {
-                    // Join with M0 (Pause) and add final M2
-                    _loadedGCode = string.Join("\nM0\n", pageCodes) + "\nM2";
-                    MessageBox.Show($"G-code generated for {_selectedPages.Count} pages!");
+                    MessageBox.Show($"G-code generated for {_generatedGCode.Count} pages!");
                 }
                 else
                 {
@@ -292,7 +290,7 @@ namespace PdfToGCode.App.Views
 
         private void btnSave_Click(object sender, RoutedEventArgs e)
         {
-            if (string.IsNullOrEmpty(_loadedGCode))
+            if (_generatedGCode.Count == 0)
             {
                 MessageBox.Show("Please generate G-code first.");
                 return;
@@ -300,16 +298,36 @@ namespace PdfToGCode.App.Views
 
             var dlg = new SaveFileDialog();
             dlg.Filter = "G-code Files (*.gcode;*.nc)|*.gcode;*.nc";
+            if (!string.IsNullOrEmpty(_currentPdfPath))
+            {
+                dlg.FileName = Path.GetFileNameWithoutExtension(_currentPdfPath);
+            }
+
             if (dlg.ShowDialog() == true)
             {
                 try
                 {
-                    File.WriteAllText(dlg.FileName, _loadedGCode);
-                    MessageBox.Show("G-code saved successfully.");
+                    string basePath = dlg.FileName;
+                    string dir = Path.GetDirectoryName(basePath);
+                    string name = Path.GetFileNameWithoutExtension(basePath);
+                    string ext = Path.GetExtension(basePath);
+                    if (string.IsNullOrEmpty(ext)) ext = ".gcode";
+
+                    int savedCount = 0;
+                    foreach (var kvp in _generatedGCode)
+                    {
+                        int pageNum = kvp.Key;
+                        string content = kvp.Value;
+                        string finalPath = Path.Combine(dir, $"{name}_{pageNum}{ext}");
+                        File.WriteAllText(finalPath, content);
+                        savedCount++;
+                    }
+
+                    MessageBox.Show($"Saved {savedCount} files successfully.");
                 }
                 catch (Exception ex)
                 {
-                    MessageBox.Show($"Error saving file: {ex.Message}");
+                    MessageBox.Show($"Error saving files: {ex.Message}");
                 }
             }
         }
