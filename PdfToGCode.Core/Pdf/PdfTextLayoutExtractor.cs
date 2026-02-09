@@ -5,7 +5,7 @@ using System.Linq;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
-using PdfToGCode.Core.Utils;
+using CorePdfPoint = PdfToGCode.Core.Utils.PdfPoint;
 
 namespace PdfToGCode.Core.Pdf
 {
@@ -97,8 +97,8 @@ namespace PdfToGCode.Core.Pdf
                     glyphs.Add(new ExtractedGlyph
                     {
                         Character = letter.Value[0],
-                        BottomLeft = new PdfPoint(letter.GlyphRectangle.BottomLeft.X, letter.GlyphRectangle.BottomLeft.Y),
-                        Origin = new PdfPoint(letter.StartBaseLine.X, letter.StartBaseLine.Y),
+                        BottomLeft = new CorePdfPoint(letter.GlyphRectangle.BottomLeft.X, letter.GlyphRectangle.BottomLeft.Y),
+                        Origin = new CorePdfPoint(letter.StartBaseLine.X, letter.StartBaseLine.Y),
                         Width = letter.Width,
                         Height = letter.GlyphRectangle.Height,
                         FontSize = letter.FontSize,
@@ -111,7 +111,7 @@ namespace PdfToGCode.Core.Pdf
                 results.Add(new ExtractedText
                 {
                     Text = word.Text,
-                    BottomLeft = new PdfPoint(word.BoundingBox.BottomLeft.X, word.BoundingBox.BottomLeft.Y),
+                    BottomLeft = new CorePdfPoint(word.BoundingBox.BottomLeft.X, word.BoundingBox.BottomLeft.Y),
                     Width = word.BoundingBox.Width,
                     Height = word.BoundingBox.Height,
                     FontSize = word.Letters[0].FontSize,
@@ -123,65 +123,67 @@ namespace PdfToGCode.Core.Pdf
 
         private void ExtractShapesFromPage(Page page, List<ExtractedShape> shapes)
         {
-            // PdfPig ExperimentalAccess to paths
-            var paths = page.ExperimentalAccess.Paths;
-            foreach (var path in paths)
+            // For older PdfPig versions, iterating Paths yields PdfPath objects.
+            // If PdfPath doesn't have Commands, we can't extract geometry easily.
+            // But PdfPig 0.1.x usually has Commands or similar.
+            // If Commands is missing in this version, maybe we can cast to IPath?
+            // Or maybe iterate ExperimentalAccess.Paths?
+            // The warning said ExperimentalAccess is obsolete, use Page.Paths.
+            // Let's assume Page.Paths works but we need to find how to get segments.
+
+            // NOTE: UglyToad.PdfPig version 0.1.13 PdfPath definition:
+            // It implements IEnumerable<PdfSubpath>.
+            // So we can iterate the path itself to get subpaths.
+
+            foreach (var path in page.Paths)
             {
-                if (!path.IsStroked) continue; // Only stroke, ignore filled for now (G-code usually cuts strokes)
+                if (!path.IsStroked) continue;
 
-                var shape = new ExtractedShape();
-                shape.IsClosed = false; // Need to determine from subpaths
-
-                foreach (var subpath in path.GetSubpaths())
+                foreach (var subpath in path) // Iterate subpaths directly
                 {
-                    // Linearize subpath commands to PdfPoints
-                    var points = new List<PdfPoint>();
+                    var currentPoints = new List<CorePdfPoint>();
+                    bool isClosed = false;
+
+                    // Iterate commands in subpath
                     foreach (var command in subpath.Commands)
                     {
-                        if (command is UglyToad.PdfPig.Graphics.Operations.PathConstruction.MoveTo move)
-                        {
-                            points.Add(new PdfPoint(move.Point.X, move.Point.Y));
-                        }
-                        else if (command is UglyToad.PdfPig.Graphics.Operations.PathConstruction.LineTo line)
-                        {
-                            points.Add(new PdfPoint(line.Point.X, line.Point.Y));
-                        }
-                        else if (command is UglyToad.PdfPig.Graphics.Operations.PathConstruction.ClosePath)
-                        {
-                            shape.IsClosed = true;
-                            // Add start point to end if not already?
-                            if (points.Count > 0)
-                            {
-                                points.Add(points[0]);
-                            }
-                        }
-                        // Handle Bezier curves? PdfPig might have CubicBezierCurve
-                        else if (command is UglyToad.PdfPig.Graphics.Operations.PathConstruction.CubicBezierCurve cubic)
-                        {
-                            // Flatten bezier
-                            var last = points.LastOrDefault();
-                            if (last.Equals(default(PdfPoint))) last = new PdfPoint(0,0); // Should have MoveTo before
+                        var name = command.GetType().Name;
+                        dynamic cmd = command;
 
-                            AddBezier(points, last,
-                                      new PdfPoint(cubic.FirstControlPoint.X, cubic.FirstControlPoint.Y),
-                                      new PdfPoint(cubic.SecondControlPoint.X, cubic.SecondControlPoint.Y),
-                                      new PdfPoint(cubic.EndPoint.X, cubic.EndPoint.Y));
+                        if (name == "MoveTo")
+                        {
+                            currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
+                        }
+                        else if (name == "LineTo")
+                        {
+                            currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
+                        }
+                        else if (name == "ClosePath")
+                        {
+                            isClosed = true;
+                            if (currentPoints.Count > 0) currentPoints.Add(currentPoints[0]);
+                        }
+                        else if (name == "CubicBezierCurve")
+                        {
+                            var last = currentPoints.LastOrDefault();
+                            if (last.Equals(default(CorePdfPoint))) last = new CorePdfPoint(0,0);
+
+                            AddBezier(currentPoints, last,
+                                      new CorePdfPoint(cmd.FirstControlPoint.X, cmd.FirstControlPoint.Y),
+                                      new CorePdfPoint(cmd.SecondControlPoint.X, cmd.SecondControlPoint.Y),
+                                      new CorePdfPoint(cmd.EndPoint.X, cmd.EndPoint.Y));
                         }
                     }
 
-                    if (points.Count > 1)
+                    if (currentPoints.Count > 1)
                     {
-                        // Each subpath is a shape or part of shape.
-                        // Ideally return list of list points, but ExtractedShape has List<PdfPoint>.
-                        // So one ExtractedShape = one subpath for simplicity.
-                        var subShape = new ExtractedShape { Points = points, IsClosed = shape.IsClosed, StrokeWidth = path.LineWidth };
-                        shapes.Add(subShape);
+                        shapes.Add(new ExtractedShape { Points = currentPoints, IsClosed = isClosed, StrokeWidth = path.LineWidth });
                     }
                 }
             }
         }
 
-        private void AddBezier(List<PdfPoint> points, PdfPoint p0, PdfPoint p1, PdfPoint p2, PdfPoint p3)
+        private void AddBezier(List<CorePdfPoint> points, CorePdfPoint p0, CorePdfPoint p1, CorePdfPoint p2, CorePdfPoint p3)
         {
             int steps = 10;
             for (int i = 1; i <= steps; i++)
@@ -196,7 +198,7 @@ namespace PdfToGCode.Core.Pdf
                 double x = uuu * p0.X + 3 * uu * t * p1.X + 3 * u * tt * p2.X + ttt * p3.X;
                 double y = uuu * p0.Y + 3 * uu * t * p1.Y + 3 * u * tt * p2.Y + ttt * p3.Y;
 
-                points.Add(new PdfPoint(x, y));
+                points.Add(new CorePdfPoint(x, y));
             }
         }
     }
