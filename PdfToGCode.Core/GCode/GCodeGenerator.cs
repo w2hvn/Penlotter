@@ -10,7 +10,7 @@ namespace PdfToGCode.Core.GCode
 {
     public class GCodeGenerator
     {
-        public string Generate(List<ExtractedText> textBlocks, FontData fontData, GCodeSettings settings)
+        public string Generate(ExtractedPageContent content, FontData fontData, GCodeSettings settings)
         {
             var sb = new StringBuilder();
             sb.AppendLine("G21"); // mm
@@ -18,14 +18,38 @@ namespace PdfToGCode.Core.GCode
             if (settings.UseG64) sb.AppendLine("G64"); // Constant velocity
             sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
 
-            // Flatten glyphs
-            var allGlyphs = textBlocks.SelectMany(t => t.Glyphs).ToList();
+            // 1. Shapes (Tables, Borders) First
+            // Sort shapes? Maybe by Y (Top-Down) or size?
+            // "table bao quanh text (nếu có)"
+            // Usually we just print them.
+            // If they are strictly bounding boxes, maybe print them first.
 
-            // Sort logic: Top to Bottom, Left to Right
-            // Group by approximate Y to handle slight misalignment
-            // 5 points tolerance ~ 1.76mm
-            // Using Origin (Baseline) for sorting is much better than BottomLeft,
-            // because descenders (g, y, p, q, j) have lower BottomLeft than baseline.
+            // Sort shapes Top-Down
+            var sortedShapes = content.Shapes
+                .OrderByDescending(s => GetBoundingBox(s).MaxY)
+                .ToList();
+
+            foreach (var shape in sortedShapes)
+            {
+                if (shape.Points.Count < 2) continue;
+
+                // Move to start
+                var start = CoordinateMapper.ConvertPdfToGCode(shape.Points[0]);
+                sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
+                sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
+
+                for (int i = 1; i < shape.Points.Count; i++)
+                {
+                    var pt = CoordinateMapper.ConvertPdfToGCode(shape.Points[i]);
+                    sb.AppendLine($"G1 X{pt.X:F3} Y{pt.Y:F3}");
+                }
+
+                sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
+            }
+
+            // 2. Text (Top-Down, Left-Right)
+            var allGlyphs = content.TextBlocks.SelectMany(t => t.Glyphs).ToList();
+
             var sortedGlyphs = allGlyphs
                 .OrderByDescending(g => Math.Round(g.Origin.Y / 5.0) * 5.0)
                 .ThenBy(g => g.Origin.X)
@@ -36,19 +60,12 @@ namespace PdfToGCode.Core.GCode
                 if (!fontData.Glyphs.ContainsKey(glyph.Character)) continue;
 
                 var geometry = fontData.Glyphs[glyph.Character];
-
-                // Calculate scale
-                // Font units are arbitrary (UnitsPerEm)
-                // We want final height in points to match glyph.FontSize
-                // So scale = glyph.FontSize / UnitsPerEm
                 double scale = glyph.FontSize / fontData.UnitsPerEm;
 
                 foreach (var stroke in geometry.Strokes)
                 {
                     if (stroke.Count == 0) continue;
 
-                    // Move to start of stroke
-                    // Use Origin (StartBaseLine) as the anchor point
                     var start = Transform(stroke[0], scale, glyph.Origin);
 
                     sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
@@ -64,24 +81,34 @@ namespace PdfToGCode.Core.GCode
                 }
             }
 
-            sb.AppendLine("M2"); // End of program
+            sb.AppendLine("M2");
             return sb.ToString();
+        }
+
+        // Backward compatibility
+        public string Generate(List<ExtractedText> textBlocks, FontData fontData, GCodeSettings settings)
+        {
+            return Generate(new ExtractedPageContent { TextBlocks = textBlocks }, fontData, settings);
         }
 
         private PdfPoint Transform(PdfPoint fontPoint, double scale, PdfPoint originPdf)
         {
-            // fontPoint: coordinates in font units
-            // scale: scaling factor to convert font units to PDF points
-            // originPdf: position of the glyph in PDF points (baseline origin)
-
-            // Calculate position in PDF points
-            // fontPoint.Y is relative to baseline (positive up)
-            // originPdf.Y is baseline Y in PDF coords (positive up)
             double xPoints = fontPoint.X * scale + originPdf.X;
             double yPoints = fontPoint.Y * scale + originPdf.Y;
-
-            // Convert PDF points to G-code millimeters
             return CoordinateMapper.ConvertPdfToGCode(new PdfPoint(xPoints, yPoints));
+        }
+
+        private (double MaxY, double MinY) GetBoundingBox(ExtractedShape shape)
+        {
+            if (shape.Points.Count == 0) return (0, 0);
+            double max = double.MinValue;
+            double min = double.MaxValue;
+            foreach (var p in shape.Points)
+            {
+                if (p.Y > max) max = p.Y;
+                if (p.Y < min) min = p.Y;
+            }
+            return (max, min);
         }
     }
 }

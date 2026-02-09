@@ -86,7 +86,6 @@ namespace PdfToGCode.App.Views
         private void SetBusy(bool isBusy)
         {
             progressBar.Visibility = isBusy ? Visibility.Visible : Visibility.Collapsed;
-            // Optionally disable buttons
             this.IsEnabled = !isBusy;
         }
 
@@ -171,35 +170,21 @@ namespace PdfToGCode.App.Views
             _loadedPages.Clear();
             _generatedGCode.Clear();
 
-            // Prepare list for background processing if needed, but PdfLoader does image gen which might need UI thread or bitmap freezing
-            // PdfLoader.Load returns BitmapSource which must be created on UI thread or frozen.
-            // Let's run extraction in background but image creation is tricky with PdfiumViewer rendering to Bitmap (System.Drawing) then conversion.
-            // PdfLoader.Load currently does both.
-            // We should ideally split or ensure BitmapSource is frozen.
-            // PdfLoader.Load freezes the bitmap, so it should be safe to pass across threads.
-
             try
             {
-                // Process in chunks or parallel? Parallel might crash Pdfium. Serial is safer.
                 var pages = await Task.Run(() =>
                 {
                     var list = new List<(PageData Data, BitmapSource Image)>();
-                    double currentX = 50;
-                    double margin = 50;
-
                     foreach (var pageNum in _selectedPages)
                     {
                         var result = _pdfLoader.Load(_currentPdfPath, pageNum);
-
-                        // We can't access UI controls here (Canvas).
-                        // We return data to add later.
 
                         var pageData = new PageData
                         {
                             PageNumber = pageNum,
                             Width = result.Width,
                             Height = result.Height,
-                            TextBlocks = result.Text
+                            Content = result.Content
                         };
 
                         list.Add((pageData, result.Image));
@@ -207,7 +192,6 @@ namespace PdfToGCode.App.Views
                     return list;
                 });
 
-                // Update UI
                 double currentX = 50;
                 double margin = 50;
 
@@ -277,22 +261,6 @@ namespace PdfToGCode.App.Views
             UpdateStatus("Vectorizing...", true);
             try
             {
-                // VectorSceneRenderer logic might be heavy.
-                // Refactor rendering to calculate paths in background, then add to canvas.
-                // VectorSceneRenderer.RenderScene currently does it all.
-                // We should modify it or just wrap it?
-                // Wrapping `RenderScene` in Task.Run won't work because it touches UI (Canvas).
-                // We need to split logic.
-                // For now, let's just await a Task that calculates geometries?
-                // Or: Modify VectorSceneRenderer to separate calculation from drawing.
-
-                // Let's assume VectorSceneRenderer is updated to be async-friendly or we do it here.
-                // Since I can't modify VectorSceneRenderer in this step (Plan says "Refactor Rendering" is next step),
-                // I will placeholder this and rely on next step.
-                // But wait, the plan says "Refactor Rendering for Async" is Step 4.
-                // So I should implement the Async handler here but call the (to be updated) renderer.
-
-                // Assuming RenderSceneAsync signature:
                 await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _fontData);
                 UpdateStatus("Vector Preview Ready");
             }
@@ -334,12 +302,10 @@ namespace PdfToGCode.App.Views
 
                     foreach(var page in _loadedPages)
                     {
-                        if (page.TextBlocks.Count > 0)
+                        // Check if content exists
+                        if (page.Content.TextBlocks.Count > 0 || page.Content.Shapes.Count > 0)
                         {
-                            var gcode = generator.Generate(page.TextBlocks, _fontData, settings);
-                            // Locking needed? No, purely local loop or dictionary access.
-                            // But Dictionary is not thread safe if parallel.
-                            // This is sequential loop in Task, so safe.
+                            var gcode = generator.Generate(page.Content, _fontData, settings);
                             _generatedGCode[page.PageNumber] = gcode;
                         }
                     }
@@ -352,8 +318,8 @@ namespace PdfToGCode.App.Views
                 }
                 else
                 {
-                     MessageBox.Show("No text found on selected pages.");
-                     UpdateStatus("No text extracted");
+                     MessageBox.Show("No text or shapes found on selected pages.");
+                     UpdateStatus("No content extracted");
                 }
             }
             catch (Exception ex)

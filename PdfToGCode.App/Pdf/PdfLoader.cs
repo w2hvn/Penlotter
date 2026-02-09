@@ -13,18 +13,23 @@ namespace PdfToGCode.App.Pdf
         private readonly PdfTextLayoutExtractor _extractor = new PdfTextLayoutExtractor();
 
         /// <summary>
-        /// Loads PDF page, extracts text and renders image.
+        /// Loads PDF page, extracts content (text + shapes) and renders image.
         /// </summary>
-        /// <param name="path">PDF file path.</param>
-        /// <param name="pageNumber">1-based page number.</param>
-        /// <returns>Extracted text, Page Width, Page Height, Rendered Image, Total Pages.</returns>
-        public (List<ExtractedText> Text, double Width, double Height, BitmapSource Image, int TotalPages) Load(string path, int pageNumber = 1)
+        public (ExtractedPageContent Content, double Width, double Height, BitmapSource Image, int TotalPages) Load(string path, int pageNumber = 1)
         {
-            if (!File.Exists(path)) return (new List<ExtractedText>(), 0, 0, null, 0);
+            if (!File.Exists(path)) return (new ExtractedPageContent(), 0, 0, null, 0);
 
-            // 1. Get dimensions and text in one go (using PdfPig)
-            // Note: ExtractPage might fail if pageNumber is out of range, check internally
-            var (text, width, height) = _extractor.ExtractPage(path, pageNumber);
+            // 1. Get content (Text + Shapes)
+            // Need to update PdfTextLayoutExtractor to expose method returning Content + Dimensions?
+            // Actually ExtractPageContent returns just Content.
+            // Dimensions are inside or need separate call?
+            // ExtractPageContent calls ExtractWordsFromPage etc.
+            // But width/height logic is separate in GetPageDimensions.
+            // Let's call both or update extractor.
+
+            // Reusing existing flow logic:
+            var content = _extractor.ExtractPageContent(path, pageNumber);
+            var (width, height) = _extractor.GetPageDimensions(path, pageNumber);
 
             // 2. Render image (using PdfiumViewer)
             BitmapSource image = null;
@@ -37,11 +42,6 @@ namespace PdfToGCode.App.Pdf
 
                     if (pageNumber > 0 && pageNumber <= totalPages)
                     {
-                        // Calculate pixels for 96 DPI (Standard screen DPI)
-                        // width/height are in Points (1/72 inch).
-                        // If PdfPig width is 0 (failed extraction?), fall back to Pdfium page size?
-                        // Let's rely on PdfPig for dimensions if successful.
-
                         if (width == 0 || height == 0)
                         {
                             var s = doc.PageSizes[pageNumber - 1];
@@ -52,7 +52,6 @@ namespace PdfToGCode.App.Pdf
                         int w = (int)(width / 72.0 * 96.0);
                         int h = (int)(height / 72.0 * 96.0);
 
-                        // PdfiumViewer uses 0-based index
                         using (var bitmap = doc.Render(pageNumber - 1, w, h, 96, 96, PdfRenderFlags.CorrectFromDpi))
                         {
                             image = ToBitmapSource(bitmap);
@@ -62,10 +61,10 @@ namespace PdfToGCode.App.Pdf
             }
             catch
             {
-                // Fallback if rendering fails
+                // Fallback
             }
 
-            return (text, width, height, image, totalPages);
+            return (content, width, height, image, totalPages);
         }
 
         private BitmapSource ToBitmapSource(System.Drawing.Image source)
