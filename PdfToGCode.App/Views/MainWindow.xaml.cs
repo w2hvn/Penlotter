@@ -39,7 +39,6 @@ namespace PdfToGCode.App.Views
             _sceneRenderer = new VectorSceneRenderer();
             _fontManager = new FontManager();
 
-            // Setup Fonts Directory
             _fontsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Fonts");
             if (!Directory.Exists(_fontsDir)) Directory.CreateDirectory(_fontsDir);
 
@@ -74,7 +73,6 @@ namespace PdfToGCode.App.Views
                 if (_fontData != null)
                 {
                     UpdateStatus("Font Loaded");
-                    // Auto re-vectorize if content is loaded
                     if (_loadedPages.Count > 0)
                     {
                         btnVectorize_Click(this, new RoutedEventArgs());
@@ -256,11 +254,8 @@ namespace PdfToGCode.App.Views
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
 
-                // If font is already loaded, auto-vectorize
                 if (_fontData != null)
                 {
-                    // Trigger async vectorize but don't await to block this method?
-                    // Better to just call it.
                     btnVectorize_Click(this, new RoutedEventArgs());
                 }
             }
@@ -311,6 +306,19 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
+            // Get settings from UI
+            if (!double.TryParse(txtZDown.Text, out double zDown))
+            {
+                MessageBox.Show("Invalid Z Down value.");
+                return;
+            }
+
+            if (!double.TryParse(txtZSafe.Text, out double zSafe))
+            {
+                MessageBox.Show("Invalid Z Safe value.");
+                return;
+            }
+
             UpdateStatus("Generating G-code...", true);
 
             try
@@ -319,7 +327,12 @@ namespace PdfToGCode.App.Views
 
                 await Task.Run(() =>
                 {
-                    var settings = new GCodeSettings();
+                    var settings = new GCodeSettings
+                    {
+                        ZDown = zDown,
+                        ZUp = zSafe
+                    };
+
                     var generator = new GCodeGenerator();
 
                     foreach(var page in _loadedPages)

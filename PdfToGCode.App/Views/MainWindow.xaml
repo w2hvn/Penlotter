@@ -27,6 +27,7 @@
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/> <!-- Import, Range, Font -->
+                    <ColumnDefinition Width="Auto"/> <!-- Spacer/Settings -->
                     <ColumnDefinition Width="*"/>    <!-- Spacer -->
                     <ColumnDefinition Width="Auto"/> <!-- Actions -->
                 </Grid.ColumnDefinitions>
@@ -43,11 +44,21 @@
                     <ComboBox Name="cboFonts" Width="150" VerticalContentAlignment="Center" Margin="0,0,15,0"
                               SelectionChanged="cboFonts_SelectionChanged"
                               Style="{StaticResource ModernComboBoxStyle}"/>
-                              <!-- Note: ModernComboBoxStyle not defined yet, using default or adding style -->
+                </StackPanel>
+
+                <!-- Middle: G-Code Settings -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0">
+                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Margin="0,5,15,5"/>
+
+                    <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
+                    <TextBox Name="txtZDown" Text="-1.0" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
+                    <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
+                    <TextBox Name="txtZSafe" Text="5.0" Width="50" VerticalContentAlignment="Center" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
                 </StackPanel>
 
                 <!-- Right: Actions -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <StackPanel Grid.Column="3" Orientation="Horizontal">
                     <Button Name="btnVectorize" Content="Preview Vectors" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
                     <Button Name="btnGenerate" Content="Generate G-code" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
                     <Button Name="btnSave" Content="Save Files" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
