@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
@@ -23,53 +24,70 @@ namespace PdfToGCode.App.Views
         private VectorSceneRenderer _sceneRenderer;
         private List<PageData> _loadedPages = new List<PageData>();
         private FontData _fontData;
+        private FontManager _fontManager;
         private Dictionary<int, string> _generatedGCode = new Dictionary<int, string>();
 
         private string _currentPdfPath;
         private int _totalPages = 0;
         private List<int> _selectedPages = new List<int>();
+        private string _fontsDir;
 
         public MainWindow()
         {
             InitializeComponent();
             _pdfLoader = new PdfLoader();
             _sceneRenderer = new VectorSceneRenderer();
-            LoadFontAsync();
+            _fontManager = new FontManager();
+
+            // Setup Fonts Directory
+            _fontsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Fonts");
+            if (!Directory.Exists(_fontsDir)) Directory.CreateDirectory(_fontsDir);
+
+            InitializeFonts();
             UpdateStatus("Ready");
         }
 
-        private async void LoadFontAsync()
+        private async void InitializeFonts()
         {
-            UpdateStatus("Loading Font...", true);
+            await Task.Run(() => _fontManager.ScanFonts(_fontsDir));
+
+            cboFonts.ItemsSource = _fontManager.AvailableFonts;
+            if (_fontManager.AvailableFonts.Count > 0)
+            {
+                cboFonts.SelectedIndex = 0;
+            }
+        }
+
+        private async void cboFonts_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cboFonts.SelectedItem == null) return;
+            string fontName = cboFonts.SelectedItem.ToString();
+
+            UpdateStatus($"Loading Font: {fontName}...", true);
             try
             {
                 await Task.Run(() =>
                 {
-                    var assembly = typeof(SvgFontParser).Assembly;
-                    var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
-
-                    using (var stream = assembly.GetManifestResourceStream(resourceName))
-                    {
-                        if (stream != null)
-                        {
-                            using (var reader = new StreamReader(stream))
-                            {
-                                var content = reader.ReadToEnd();
-                                var parser = new SvgFontParser();
-                                _fontData = parser.Parse(content);
-                            }
-                        }
-                    }
+                    _fontData = _fontManager.LoadFont(fontName, _fontsDir);
                 });
 
-                if (_fontData == null)
-                    MessageBox.Show("Could not load embedded font resource.");
-                else
+                if (_fontData != null)
+                {
                     UpdateStatus("Font Loaded");
+                    // Auto re-vectorize if content is loaded
+                    if (_loadedPages.Count > 0)
+                    {
+                        btnVectorize_Click(this, new RoutedEventArgs());
+                    }
+                }
+                else
+                {
+                    UpdateStatus("Error loading font");
+                }
             }
             catch (Exception ex)
             {
-                UpdateStatus($"Font Error: {ex.Message}");
+                UpdateStatus($"Font Load Error: {ex.Message}");
             }
             finally
             {
@@ -237,6 +255,14 @@ namespace PdfToGCode.App.Views
 
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
+
+                // If font is already loaded, auto-vectorize
+                if (_fontData != null)
+                {
+                    // Trigger async vectorize but don't await to block this method?
+                    // Better to just call it.
+                    btnVectorize_Click(this, new RoutedEventArgs());
+                }
             }
             catch (Exception ex)
             {
@@ -246,15 +272,11 @@ namespace PdfToGCode.App.Views
 
         private async void btnVectorize_Click(object sender, RoutedEventArgs e)
         {
-            if (_loadedPages.Count == 0)
-            {
-                MessageBox.Show("Please import a PDF first.");
-                return;
-            }
+            if (_loadedPages.Count == 0) return;
 
             if (_fontData == null)
             {
-                MessageBox.Show("Font data not loaded.");
+                MessageBox.Show("Please select a font.");
                 return;
             }
 
@@ -285,7 +307,7 @@ namespace PdfToGCode.App.Views
 
             if (_fontData == null)
             {
-                MessageBox.Show("Font data not loaded.");
+                MessageBox.Show("Please select a font.");
                 return;
             }
 
@@ -302,7 +324,6 @@ namespace PdfToGCode.App.Views
 
                     foreach(var page in _loadedPages)
                     {
-                        // Check if content exists
                         if (page.Content.TextBlocks.Count > 0 || page.Content.Shapes.Count > 0)
                         {
                             var gcode = generator.Generate(page.Content, _fontData, settings);

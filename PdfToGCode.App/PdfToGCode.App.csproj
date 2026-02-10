@@ -15,4 +15,10 @@
     <ProjectReference Include="..\PdfToGCode.Core\PdfToGCode.Core.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="Fonts\**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

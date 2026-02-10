@@ -51,6 +51,15 @@
             </Setter>
         </Style>
 
+        <!-- ComboBox Style -->
+        <Style TargetType="ComboBox" x:Key="ModernComboBoxStyle">
+            <Setter Property="Padding" Value="5"/>
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="BorderBrush" Value="{StaticResource BrushLightBorder}"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Background" Value="White"/>
+        </Style>
+
         <!-- TextBox Style -->
         <Style TargetType="TextBox" x:Key="ModernTextBoxStyle">
             <Setter Property="Padding" Value="5"/>
