@@ -110,8 +110,9 @@ namespace PdfToGCode.App.Rendering
                         }
                     }
 
-                    if (textGeometry.Figures.Count > 0) textGeometry.Freeze();
-                    if (shapeGeometry.Figures.Count > 0) shapeGeometry.Freeze();
+                    // Always freeze geometries created on background thread so they can be accessed on UI thread
+                    if (textGeometry.CanFreeze) textGeometry.Freeze();
+                    if (shapeGeometry.CanFreeze) shapeGeometry.Freeze();
 
                     results.Add((textGeometry, shapeGeometry, currentX, 0, page.Width, page.Height, page.PageNumber));
                     currentX += page.Width + margin;
