@@ -93,6 +93,12 @@ namespace PdfToGCode.App.Views
             }
         }
 
+        private void chkServo_CheckedChanged(object sender, RoutedEventArgs e)
+        {
+            // Placeholder logic if needed (e.g., change label text)
+            // But we read the value on Generate click.
+        }
+
         private void UpdateStatus(string message, bool isBusy = false)
         {
             txtStatus.Text = message;
@@ -306,7 +312,6 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
-            // Get settings from UI
             if (!double.TryParse(txtZDown.Text, out double zDown))
             {
                 MessageBox.Show("Invalid Z Down value.");
@@ -319,6 +324,8 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
+            bool isServo = chkServo.IsChecked == true;
+
             UpdateStatus("Generating G-code...", true);
 
             try
@@ -330,7 +337,8 @@ namespace PdfToGCode.App.Views
                     var settings = new GCodeSettings
                     {
                         ZDown = zDown,
-                        ZUp = zSafe
+                        ZUp = zSafe,
+                        IsServoMode = isServo
                     };
 
                     var generator = new GCodeGenerator();

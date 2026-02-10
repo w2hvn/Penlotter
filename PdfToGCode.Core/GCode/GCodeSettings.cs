@@ -7,5 +7,6 @@ namespace PdfToGCode.Core.GCode
         public double ZUp { get; set; } = 5.0;
         public double ZDown { get; set; } = -1.0;
         public bool UseG64 { get; set; } = true;
+        public bool IsServoMode { get; set; } = false;
     }
 }

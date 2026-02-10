@@ -16,15 +16,11 @@ namespace PdfToGCode.Core.GCode
             sb.AppendLine("G21"); // mm
             sb.AppendLine("G90"); // Absolute positioning
             if (settings.UseG64) sb.AppendLine("G64"); // Constant velocity
-            sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
+
+            // Initial move to Safe Z/Servo Up
+            AppendPenUp(sb, settings);
 
             // 1. Shapes (Tables, Borders) First
-            // Sort shapes? Maybe by Y (Top-Down) or size?
-            // "table bao quanh text (nếu có)"
-            // Usually we just print them.
-            // If they are strictly bounding boxes, maybe print them first.
-
-            // Sort shapes Top-Down
             var sortedShapes = content.Shapes
                 .OrderByDescending(s => GetBoundingBox(s).MaxY)
                 .ToList();
@@ -36,7 +32,9 @@ namespace PdfToGCode.Core.GCode
                 // Move to start
                 var start = CoordinateMapper.ConvertPdfToGCode(shape.Points[0]);
                 sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
-                sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
+
+                // Pen Down
+                AppendPenDown(sb, settings);
 
                 for (int i = 1; i < shape.Points.Count; i++)
                 {
@@ -44,7 +42,8 @@ namespace PdfToGCode.Core.GCode
                     sb.AppendLine($"G1 X{pt.X:F3} Y{pt.Y:F3}");
                 }
 
-                sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
+                // Pen Up
+                AppendPenUp(sb, settings);
             }
 
             // 2. Text (Top-Down, Left-Right)
@@ -69,7 +68,8 @@ namespace PdfToGCode.Core.GCode
                     var start = Transform(stroke[0], scale, glyph.Origin);
 
                     sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
-                    sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
+
+                    AppendPenDown(sb, settings);
 
                     for (int i = 1; i < stroke.Count; i++)
                     {
@@ -77,12 +77,44 @@ namespace PdfToGCode.Core.GCode
                         sb.AppendLine($"G1 X{point.X:F3} Y{point.Y:F3}");
                     }
 
-                    sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
+                    AppendPenUp(sb, settings);
                 }
             }
 
             sb.AppendLine("M2");
             return sb.ToString();
+        }
+
+        private void AppendPenUp(StringBuilder sb, GCodeSettings settings)
+        {
+            if (settings.IsServoMode)
+            {
+                // M3 S<Value> or M5 usually.
+                // Common servo: M3 S0 (Up) / M3 S255 (Down) depending on config.
+                // We use ZUp as the S-value for UP.
+                sb.AppendLine($"M3 S{settings.ZUp}");
+                // Or "M5" if strictly Spindle Off?
+                // Servo plotters usually keep M3 active and vary S.
+            }
+            else
+            {
+                sb.AppendLine($"G0 Z{settings.ZUp} F{settings.TravelSpeed}");
+            }
+        }
+
+        private void AppendPenDown(StringBuilder sb, GCodeSettings settings)
+        {
+            if (settings.IsServoMode)
+            {
+                // We use ZDown as the S-value for DOWN.
+                sb.AppendLine($"M3 S{settings.ZDown}");
+                // Add optional delay? (G4 P0.2)
+                sb.AppendLine("G4 P0.1"); // Small dwell for servo to move
+            }
+            else
+            {
+                sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
+            }
         }
 
         // Backward compatibility

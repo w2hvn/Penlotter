@@ -50,11 +50,23 @@
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0">
                     <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Margin="0,5,15,5"/>
 
-                    <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
-                    <TextBox Name="txtZDown" Text="-1.0" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+                    <StackPanel VerticalAlignment="Center">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                            <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Width="60"/>
+                            <TextBox Name="txtZDown" Text="-1.0" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Width="60"/>
+                            <TextBox Name="txtZSafe" Text="5.0" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                        </StackPanel>
+                    </StackPanel>
 
-                    <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
-                    <TextBox Name="txtZSafe" Text="5.0" Width="50" VerticalContentAlignment="Center" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
+                    <CheckBox Name="chkServo" Content="Servo Mode" VerticalAlignment="Center" Margin="15,0,0,0"
+                              Checked="chkServo_CheckedChanged" Unchecked="chkServo_CheckedChanged">
+                        <CheckBox.LayoutTransform>
+                            <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                        </CheckBox.LayoutTransform>
+                    </CheckBox>
                 </StackPanel>
 
                 <!-- Right: Actions -->
