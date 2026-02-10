@@ -31,6 +31,7 @@ namespace PdfToGCode.App.Views
         private int _totalPages = 0;
         private List<int> _selectedPages = new List<int>();
         private string _fontsDir;
+        private string _settingsPath;
 
         public MainWindow()
         {
@@ -39,11 +40,49 @@ namespace PdfToGCode.App.Views
             _sceneRenderer = new VectorSceneRenderer();
             _fontManager = new FontManager();
 
-            _fontsDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Fonts");
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            _fontsDir = Path.Combine(baseDir, "Fonts");
+            _settingsPath = Path.Combine(baseDir, "settings.json");
+
             if (!Directory.Exists(_fontsDir)) Directory.CreateDirectory(_fontsDir);
 
             InitializeFonts();
+            LoadSettings();
             UpdateStatus("Ready");
+        }
+
+        private void LoadSettings()
+        {
+            var settings = GCodeSettings.Load(_settingsPath);
+            txtFeedRate.Text = settings.FeedRate.ToString();
+            txtTravelSpeed.Text = settings.TravelSpeed.ToString();
+            txtZDown.Text = settings.ZDown.ToString();
+            txtZSafe.Text = settings.ZUp.ToString();
+            chkServo.IsChecked = settings.IsServoMode;
+        }
+
+        private void SaveSettings()
+        {
+            if (double.TryParse(txtFeedRate.Text, out double feed) &&
+                double.TryParse(txtTravelSpeed.Text, out double travel) &&
+                double.TryParse(txtZDown.Text, out double zDown) &&
+                double.TryParse(txtZSafe.Text, out double zUp))
+            {
+                var settings = new GCodeSettings
+                {
+                    FeedRate = feed,
+                    TravelSpeed = travel,
+                    ZDown = zDown,
+                    ZUp = zUp,
+                    IsServoMode = chkServo.IsChecked == true
+                };
+                settings.Save(_settingsPath);
+            }
+        }
+
+        private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            SaveSettings();
         }
 
         private async void InitializeFonts()
@@ -91,12 +130,6 @@ namespace PdfToGCode.App.Views
             {
                 SetBusy(false);
             }
-        }
-
-        private void chkServo_CheckedChanged(object sender, RoutedEventArgs e)
-        {
-            // Placeholder logic if needed (e.g., change label text)
-            // But we read the value on Generate click.
         }
 
         private void UpdateStatus(string message, bool isBusy = false)
@@ -312,15 +345,12 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
-            if (!double.TryParse(txtZDown.Text, out double zDown))
+            if (!double.TryParse(txtZDown.Text, out double zDown) ||
+                !double.TryParse(txtZSafe.Text, out double zSafe) ||
+                !double.TryParse(txtFeedRate.Text, out double feedRate) ||
+                !double.TryParse(txtTravelSpeed.Text, out double travelSpeed))
             {
-                MessageBox.Show("Invalid Z Down value.");
-                return;
-            }
-
-            if (!double.TryParse(txtZSafe.Text, out double zSafe))
-            {
-                MessageBox.Show("Invalid Z Safe value.");
+                MessageBox.Show("Invalid settings values. Please check Feed Rate, Travel Speed, and Z values.");
                 return;
             }
 
@@ -332,12 +362,17 @@ namespace PdfToGCode.App.Views
             {
                 _generatedGCode.Clear();
 
+                // Save settings
+                SaveSettings();
+
                 await Task.Run(() =>
                 {
                     var settings = new GCodeSettings
                     {
                         ZDown = zDown,
                         ZUp = zSafe,
+                        FeedRate = feedRate,
+                        TravelSpeed = travelSpeed,
                         IsServoMode = isServo
                     };
 

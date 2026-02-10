@@ -1,3 +1,7 @@
+using System;
+using System.IO;
+using System.Text.Json;
+
 namespace PdfToGCode.Core.GCode
 {
     public class GCodeSettings
@@ -8,5 +12,37 @@ namespace PdfToGCode.Core.GCode
         public double ZDown { get; set; } = -1.0;
         public bool UseG64 { get; set; } = true;
         public bool IsServoMode { get; set; } = false;
+
+        public static GCodeSettings Load(string path)
+        {
+            if (File.Exists(path))
+            {
+                try
+                {
+                    var json = File.ReadAllText(path);
+                    var settings = JsonSerializer.Deserialize<GCodeSettings>(json);
+                    if (settings != null) return settings;
+                }
+                catch
+                {
+                    // Ignore errors, return default
+                }
+            }
+            return new GCodeSettings();
+        }
+
+        public void Save(string path)
+        {
+            try
+            {
+                var options = new JsonSerializerOptions { WriteIndented = true };
+                var json = JsonSerializer.Serialize(this, options);
+                File.WriteAllText(path, json);
+            }
+            catch
+            {
+                // Ignore errors
+            }
+        }
     }
 }

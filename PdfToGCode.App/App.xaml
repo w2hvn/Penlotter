@@ -60,6 +60,18 @@
             <Setter Property="Background" Value="White"/>
         </Style>
 
+        <!-- CheckBox Style -->
+        <Style TargetType="CheckBox" x:Key="ModernCheckBoxStyle">
+            <Setter Property="FontSize" Value="14"/>
+            <Setter Property="VerticalContentAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="{StaticResource BrushText}"/>
+            <Setter Property="LayoutTransform">
+                <Setter.Value>
+                    <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- TextBox Style -->
         <Style TargetType="TextBox" x:Key="ModernTextBoxStyle">
             <Setter Property="Padding" Value="5"/>

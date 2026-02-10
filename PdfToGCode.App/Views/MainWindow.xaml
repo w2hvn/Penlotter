@@ -6,7 +6,8 @@
         xmlns:rendering="clr-namespace:PdfToGCode.App.Rendering"
         mc:Ignorable="d"
         Title="PDF to G-Code Converter" Height="900" Width="1400"
-        Background="{StaticResource BrushSecondary}">
+        Background="{StaticResource BrushSecondary}"
+        Closing="Window_Closing">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Header -->
@@ -52,21 +53,23 @@
 
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                            <Label Content="Feed Rate:" Style="{StaticResource LabelStyle}" Width="70"/>
+                            <TextBox Name="txtFeedRate" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
                             <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Width="60"/>
-                            <TextBox Name="txtZDown" Text="-1.0" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                            <TextBox Name="txtZDown" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal">
+                            <Label Content="Travel:" Style="{StaticResource LabelStyle}" Width="70"/>
+                            <TextBox Name="txtTravelSpeed" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
                             <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Width="60"/>
-                            <TextBox Name="txtZSafe" Text="5.0" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                            <TextBox Name="txtZSafe" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
                         </StackPanel>
                     </StackPanel>
 
                     <CheckBox Name="chkServo" Content="Servo Mode" VerticalAlignment="Center" Margin="15,0,0,0"
-                              Checked="chkServo_CheckedChanged" Unchecked="chkServo_CheckedChanged">
-                        <CheckBox.LayoutTransform>
-                            <ScaleTransform ScaleX="1.2" ScaleY="1.2"/>
-                        </CheckBox.LayoutTransform>
-                    </CheckBox>
+                              Style="{StaticResource ModernCheckBoxStyle}"/>
                 </StackPanel>
 
                 <!-- Right: Actions -->
