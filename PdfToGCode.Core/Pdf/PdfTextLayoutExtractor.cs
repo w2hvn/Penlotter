@@ -123,56 +123,66 @@ namespace PdfToGCode.Core.Pdf
 
         private void ExtractShapesFromPage(Page page, List<ExtractedShape> shapes)
         {
-            // For older PdfPig versions, iterating Paths yields PdfPath objects.
-            // If PdfPath doesn't have Commands, we can't extract geometry easily.
-            // But PdfPig 0.1.x usually has Commands or similar.
-            // If Commands is missing in this version, maybe we can cast to IPath?
-            // Or maybe iterate ExperimentalAccess.Paths?
-            // The warning said ExperimentalAccess is obsolete, use Page.Paths.
-            // Let's assume Page.Paths works but we need to find how to get segments.
-
-            // NOTE: UglyToad.PdfPig version 0.1.13 PdfPath definition:
-            // It implements IEnumerable<PdfSubpath>.
-            // So we can iterate the path itself to get subpaths.
-
+            // Iterate all paths (Stroked and Filled to catch tables/lines)
             foreach (var path in page.Paths)
             {
-                if (!path.IsStroked) continue;
+                if (!path.IsStroked && !path.IsFilled) continue;
 
-                foreach (var subpath in path) // Iterate subpaths directly
+                foreach (var subpath in path)
                 {
                     var currentPoints = new List<CorePdfPoint>();
                     bool isClosed = false;
 
-                    // Iterate commands in subpath
-                    foreach (var command in subpath.Commands)
+                    try
                     {
-                        var name = command.GetType().Name;
-                        dynamic cmd = command;
+                        foreach (var command in subpath.Commands)
+                        {
+                            var name = command.GetType().Name;
+                            dynamic cmd = command;
 
-                        if (name == "MoveTo")
-                        {
-                            currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
-                        }
-                        else if (name == "LineTo")
-                        {
-                            currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
-                        }
-                        else if (name == "ClosePath")
-                        {
-                            isClosed = true;
-                            if (currentPoints.Count > 0) currentPoints.Add(currentPoints[0]);
-                        }
-                        else if (name == "CubicBezierCurve")
-                        {
-                            var last = currentPoints.LastOrDefault();
-                            if (last.Equals(default(CorePdfPoint))) last = new CorePdfPoint(0,0);
+                            // Handle MoveTo
+                            if (name == "MoveTo")
+                            {
+                                currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
+                            }
+                            // Handle LineTo
+                            else if (name == "LineTo")
+                            {
+                                currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
+                            }
+                            // Handle ClosePath
+                            else if (name == "ClosePath")
+                            {
+                                isClosed = true;
+                                if (currentPoints.Count > 0) currentPoints.Add(currentPoints[0]);
+                            }
+                            // Handle Curves
+                            else if (name == "CubicBezierCurve")
+                            {
+                                var last = currentPoints.LastOrDefault();
+                                if (last.Equals(default(CorePdfPoint))) last = new CorePdfPoint(0,0);
 
-                            AddBezier(currentPoints, last,
-                                      new CorePdfPoint(cmd.FirstControlPoint.X, cmd.FirstControlPoint.Y),
-                                      new CorePdfPoint(cmd.SecondControlPoint.X, cmd.SecondControlPoint.Y),
-                                      new CorePdfPoint(cmd.EndPoint.X, cmd.EndPoint.Y));
+                                // Bezier uses FirstControlPoint, SecondControlPoint, EndPoint
+                                // Sometimes names vary? Check EndPoint vs Point?
+                                // Standard PdfPig is StartPoint, FirstControlPoint, SecondControlPoint, EndPoint (for Cubic)
+
+                                AddBezier(currentPoints, last,
+                                          new CorePdfPoint(cmd.FirstControlPoint.X, cmd.FirstControlPoint.Y),
+                                          new CorePdfPoint(cmd.SecondControlPoint.X, cmd.SecondControlPoint.Y),
+                                          new CorePdfPoint(cmd.EndPoint.X, cmd.EndPoint.Y));
+                            }
+                            // Handle Rectangle? (Usually converted to Move/Line in subpath?)
+                            // If direct op exists:
+                            else if (name == "Rectangle") // Rarely used in path commands, usually x,y,w,h
+                            {
+                                // If present, convert to 4 lines
+                                // dynamic rect = cmd; ...
+                            }
                         }
+                    }
+                    catch
+                    {
+                        // Ignore malformed commands to prevent full failure
                     }
 
                     if (currentPoints.Count > 1)

@@ -16,16 +16,12 @@ namespace PdfToGCode.Core.Utils
 
         public FontManager()
         {
-            // Initialize with default or scan
         }
 
         public void ScanFonts(string fontsDirectory)
         {
             AvailableFonts.Clear();
             _fontCache.Clear();
-
-            // Add embedded default
-            AvailableFonts.Add("CHUINHOA (Embedded)");
 
             if (Directory.Exists(fontsDirectory))
             {
@@ -42,31 +38,10 @@ namespace PdfToGCode.Core.Utils
             if (_fontCache.ContainsKey(fontName)) return _fontCache[fontName];
 
             string content = null;
-
-            if (fontName == "CHUINHOA (Embedded)")
+            string path = Path.Combine(fontsDirectory, fontName);
+            if (File.Exists(path))
             {
-                // Load resource
-                var assembly = typeof(SvgFontParser).Assembly;
-                var resourceName = "PdfToGCode.Core.Fonts.CHUINHOA.svg";
-                using (var stream = assembly.GetManifestResourceStream(resourceName))
-                {
-                    if (stream != null)
-                    {
-                        using (var reader = new StreamReader(stream))
-                        {
-                            content = reader.ReadToEnd();
-                        }
-                    }
-                }
-            }
-            else
-            {
-                // Load from file
-                string path = Path.Combine(fontsDirectory, fontName);
-                if (File.Exists(path))
-                {
-                    content = File.ReadAllText(path);
-                }
+                content = File.ReadAllText(path);
             }
 
             if (content != null)
