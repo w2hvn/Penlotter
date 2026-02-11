@@ -223,7 +223,21 @@ namespace PdfToGCode.Core.Pdf
 
         private void AddBezier(List<CorePdfPoint> points, CorePdfPoint p0, CorePdfPoint p1, CorePdfPoint p2, CorePdfPoint p3)
         {
-            int steps = 10;
+            // Estimate arc length by summing distances between control points (Control Polygon Length)
+            double dist01 = Math.Sqrt(Math.Pow(p1.X - p0.X, 2) + Math.Pow(p1.Y - p0.Y, 2));
+            double dist12 = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+            double dist23 = Math.Sqrt(Math.Pow(p3.X - p2.X, 2) + Math.Pow(p3.Y - p2.Y, 2));
+            double totalLength = dist01 + dist12 + dist23;
+
+            // Target segment length: 1.0 unit (~0.35mm in PDF points)
+            // For smoother curves, use smaller value like 0.5. For faster G-code, use larger like 2.0.
+            double resolution = 1.0;
+            int steps = (int)Math.Ceiling(totalLength / resolution);
+
+            // Sanity limits
+            if (steps < 2) steps = 2;
+            if (steps > 100) steps = 100;
+
             for (int i = 1; i <= steps; i++)
             {
                 double t = i / (double)steps;

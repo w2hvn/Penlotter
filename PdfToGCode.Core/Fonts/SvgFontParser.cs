@@ -241,7 +241,26 @@ namespace PdfToGCode.Core.Fonts
 
         private void AddBezierCubic(List<PdfPoint> stroke, PdfPoint p0, PdfPoint p1, PdfPoint p2, PdfPoint p3)
         {
-            int steps = 10;
+            // Estimate length
+            double dist01 = Math.Sqrt(Math.Pow(p1.X - p0.X, 2) + Math.Pow(p1.Y - p0.Y, 2));
+            double dist12 = Math.Sqrt(Math.Pow(p2.X - p1.X, 2) + Math.Pow(p2.Y - p1.Y, 2));
+            double dist23 = Math.Sqrt(Math.Pow(p3.X - p2.X, 2) + Math.Pow(p3.Y - p2.Y, 2));
+            double total = dist01 + dist12 + dist23;
+
+            // Target step size. Fonts usually have larger coordinate space (e.g. 1000 or 2048 UPM).
+            // So 1.0 might be too small (thousands of steps).
+            // We should use a ratio of total UPM or just a larger value like 10-20 units?
+            // If font is scale to PDF size later, we care about relative smoothness.
+            // But here we work in Font Units.
+            // Let's assume UPM ~ 1000. Step size 10 => 100 steps for full width.
+            // Let's use 20 units as target resolution for font space.
+
+            double resolution = 20.0;
+            int steps = (int)Math.Ceiling(total / resolution);
+
+            if (steps < 2) steps = 2;
+            if (steps > 50) steps = 50; // Cap to avoid too many points for complex glyphs
+
             for (int i = 1; i <= steps; i++)
             {
                 double t = i / (double)steps;

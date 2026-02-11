@@ -42,12 +42,16 @@ namespace PdfToGCode.Tests
             // Check E (Bezier)
             var glyphE = fontData.Glyphs['E'];
             Assert.Single(glyphE.Strokes);
-            // Start + 10 segments
-            Assert.Equal(11, glyphE.Strokes[0].Count);
+            // Start + segments (adaptive, so more than 2, likely more than 10 for length ~300)
+            Assert.True(glyphE.Strokes[0].Count > 2);
+
+            var lastIndex = glyphE.Strokes[0].Count - 1;
             Assert.Equal(0, glyphE.Strokes[0][0].X);
             Assert.Equal(0, glyphE.Strokes[0][0].Y);
-            Assert.Equal(300, glyphE.Strokes[0][10].X);
-            Assert.Equal(0, glyphE.Strokes[0][10].Y);
+
+            // Check endpoint
+            Assert.Equal(300, glyphE.Strokes[0][lastIndex].X);
+            Assert.Equal(0, glyphE.Strokes[0][lastIndex].Y);
         }
     }
 }
