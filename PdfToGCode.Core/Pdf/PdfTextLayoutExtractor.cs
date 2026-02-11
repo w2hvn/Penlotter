@@ -53,7 +53,6 @@ namespace PdfToGCode.Core.Pdf
             return content;
         }
 
-        // Backward compatibility method
         public (List<ExtractedText> Text, double Width, double Height) ExtractPage(string pdfPath, int pageNumber)
         {
             var results = new List<ExtractedText>();
@@ -123,9 +122,9 @@ namespace PdfToGCode.Core.Pdf
 
         private void ExtractShapesFromPage(Page page, List<ExtractedShape> shapes)
         {
-            // Iterate all paths (Stroked and Filled to catch tables/lines)
             foreach (var path in page.Paths)
             {
+                // Check if path is visible (Stroked or Filled)
                 if (!path.IsStroked && !path.IsFilled) continue;
 
                 foreach (var subpath in path)
@@ -140,49 +139,74 @@ namespace PdfToGCode.Core.Pdf
                             var name = command.GetType().Name;
                             dynamic cmd = command;
 
-                            // Handle MoveTo
                             if (name == "MoveTo")
                             {
                                 currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
                             }
-                            // Handle LineTo
                             else if (name == "LineTo")
                             {
                                 currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
                             }
-                            // Handle ClosePath
                             else if (name == "ClosePath")
                             {
                                 isClosed = true;
                                 if (currentPoints.Count > 0) currentPoints.Add(currentPoints[0]);
                             }
-                            // Handle Curves
                             else if (name == "CubicBezierCurve")
                             {
                                 var last = currentPoints.LastOrDefault();
                                 if (last.Equals(default(CorePdfPoint))) last = new CorePdfPoint(0,0);
-
-                                // Bezier uses FirstControlPoint, SecondControlPoint, EndPoint
-                                // Sometimes names vary? Check EndPoint vs Point?
-                                // Standard PdfPig is StartPoint, FirstControlPoint, SecondControlPoint, EndPoint (for Cubic)
 
                                 AddBezier(currentPoints, last,
                                           new CorePdfPoint(cmd.FirstControlPoint.X, cmd.FirstControlPoint.Y),
                                           new CorePdfPoint(cmd.SecondControlPoint.X, cmd.SecondControlPoint.Y),
                                           new CorePdfPoint(cmd.EndPoint.X, cmd.EndPoint.Y));
                             }
-                            // Handle Rectangle? (Usually converted to Move/Line in subpath?)
-                            // If direct op exists:
-                            else if (name == "Rectangle") // Rarely used in path commands, usually x,y,w,h
+                            else if (name == "Rectangle") // Explicit Rectangle command
                             {
-                                // If present, convert to 4 lines
-                                // dynamic rect = cmd; ...
+                                // Rectangle usually has (Position, Width, Height)
+                                // In PdfPig 0.1.13, Rectangle command likely has Position (bottom-left) + Width + Height
+                                // Let's try to extract these.
+                                // If cmd.Point exists, use it. If cmd.Width exists...
+
+                                // Coordinates: (X, Y) -> (X+W, Y) -> (X+W, Y+H) -> (X, Y+H) -> (X, Y)
+                                double x = cmd.Position.X; // Or cmd.Point.X? Check dynamic properties is hard.
+                                double y = cmd.Position.Y;
+                                double w = cmd.Width;
+                                double h = cmd.Height;
+
+                                // Reset current points if this is a new sub-shape?
+                                // Rectangle command adds a complete subpath.
+
+                                var rectPoints = new List<CorePdfPoint>
+                                {
+                                    new CorePdfPoint(x, y),
+                                    new CorePdfPoint(x + w, y),
+                                    new CorePdfPoint(x + w, y + h),
+                                    new CorePdfPoint(x, y + h),
+                                    new CorePdfPoint(x, y)
+                                };
+
+                                // Add as a separate shape immediately or append?
+                                // If appended to `currentPoints`, it implies connected?
+                                // Usually Rectangle is a standalone closed subpath.
+                                if (currentPoints.Count == 0)
+                                {
+                                    currentPoints.AddRange(rectPoints);
+                                    isClosed = true;
+                                }
+                                else
+                                {
+                                    // If we already have points (e.g. MoveTo), this might be weird.
+                                    // Treat as separate shape?
+                                    shapes.Add(new ExtractedShape { Points = rectPoints, IsClosed = true, StrokeWidth = path.LineWidth });
+                                }
                             }
                         }
                     }
                     catch
                     {
-                        // Ignore malformed commands to prevent full failure
+                        // Ignore
                     }
 
                     if (currentPoints.Count > 1)
