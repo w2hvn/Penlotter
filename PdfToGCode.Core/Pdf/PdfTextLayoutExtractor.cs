@@ -5,6 +5,7 @@ using System.Linq;
 using UglyToad.PdfPig;
 using UglyToad.PdfPig.Content;
 using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Graphics.Colors;
 using CorePdfPoint = PdfToGCode.Core.Utils.PdfPoint;
 
 namespace PdfToGCode.Core.Pdf
@@ -138,7 +139,12 @@ namespace PdfToGCode.Core.Pdf
             foreach (var path in page.Paths)
             {
                 // Shapes can be stroked (lines, borders) or filled (solid blocks, thick lines).
-                if (!path.IsStroked && !path.IsFilled) continue;
+                if (!path.IsStroked)
+                {
+                    if (!path.IsFilled) continue;
+                    // If only filled, ignore if White (background/mask)
+                    if (IsWhite(path.FillColor)) continue;
+                }
 
                 foreach (var subpath in path) // Iterate subpaths directly
                 {
@@ -232,6 +238,34 @@ namespace PdfToGCode.Core.Pdf
 
                 points.Add(new CorePdfPoint(x, y));
             }
+        }
+
+        private bool IsWhite(IColor color)
+        {
+            if (color == null) return false;
+
+            // Check RGB
+            if (color is RGBColor rgb)
+            {
+                // PDF RGB is 0-1 usually, but check just in case.
+                // Assuming 0-1 for double values in PdfPig.
+                return rgb.R >= 0.99 && rgb.G >= 0.99 && rgb.B >= 0.99;
+            }
+
+            // Check Grayscale
+            if (color is GrayColor gray)
+            {
+                return gray.Gray >= 0.99;
+            }
+
+            // Check CMYK
+            if (color is CMYKColor cmyk)
+            {
+                // White is C=0, M=0, Y=0, K=0
+                return cmyk.C <= 0.01 && cmyk.M <= 0.01 && cmyk.Y <= 0.01 && cmyk.K <= 0.01;
+            }
+
+            return false;
         }
     }
 }
