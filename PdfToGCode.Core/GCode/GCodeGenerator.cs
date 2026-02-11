@@ -10,7 +10,7 @@ namespace PdfToGCode.Core.GCode
 {
     public class GCodeGenerator
     {
-        public string Generate(ExtractedPageContent content, FontData fontData, GCodeSettings settings)
+        public string Generate(ExtractedPageContent content, FontData titleFont, FontData bodyFont, GCodeSettings settings)
         {
             var sb = new StringBuilder();
             sb.AppendLine("G21"); // mm
@@ -47,37 +47,55 @@ namespace PdfToGCode.Core.GCode
             }
 
             // 2. Text (Top-Down, Left-Right)
-            var allGlyphs = content.TextBlocks.SelectMany(t => t.Glyphs).ToList();
+            // Need to associate font with block during iteration.
+            // TextBlocks contain Glyphs. Glyphs are rendered per font.
+            // We should sort TextBlocks first, then render using appropriate font.
 
-            var sortedGlyphs = allGlyphs
-                .OrderByDescending(g => Math.Round(g.Origin.Y / 5.0) * 5.0)
-                .ThenBy(g => g.Origin.X)
+            // Sort Blocks
+            var sortedBlocks = content.TextBlocks
+                .OrderByDescending(t => Math.Round(t.BottomLeft.Y / 5.0) * 5.0) // Approx Y
+                .ThenBy(t => t.BottomLeft.X)
                 .ToList();
 
-            foreach (var glyph in sortedGlyphs)
+            // Note: Previously we flattened to Glyphs.
+            // Now we need block context for font selection.
+            // But we still need sorting of individual glyphs?
+            // Usually glyphs within a block are sorted.
+            // Sorting blocks is generally safe for "Top-Down Left-Right".
+            // However, if we want strict glyph sorting across blocks on same line, we might need to flatten with metadata.
+
+            // Let's iterate blocks, and for each block use specific font.
+            // But if multiple blocks are on same line (e.g. Title part 1, Title part 2), block sorting handles it.
+
+            foreach (var block in sortedBlocks)
             {
-                if (!fontData.Glyphs.ContainsKey(glyph.Character)) continue;
+                var fontData = IsAllUpperCase(block.Text) ? titleFont : bodyFont;
 
-                var geometry = fontData.Glyphs[glyph.Character];
-                double scale = glyph.FontSize / fontData.UnitsPerEm;
-
-                foreach (var stroke in geometry.Strokes)
+                foreach (var glyph in block.Glyphs)
                 {
-                    if (stroke.Count == 0) continue;
+                    if (!fontData.Glyphs.ContainsKey(glyph.Character)) continue;
 
-                    var start = Transform(stroke[0], scale, glyph.Origin);
+                    var geometry = fontData.Glyphs[glyph.Character];
+                    double scale = glyph.FontSize / fontData.UnitsPerEm;
 
-                    sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
-
-                    AppendPenDown(sb, settings);
-
-                    for (int i = 1; i < stroke.Count; i++)
+                    foreach (var stroke in geometry.Strokes)
                     {
-                        var point = Transform(stroke[i], scale, glyph.Origin);
-                        sb.AppendLine($"G1 X{point.X:F3} Y{point.Y:F3}");
-                    }
+                        if (stroke.Count == 0) continue;
 
-                    AppendPenUp(sb, settings);
+                        var start = Transform(stroke[0], scale, glyph.Origin);
+
+                        sb.AppendLine($"G0 X{start.X:F3} Y{start.Y:F3}");
+
+                        AppendPenDown(sb, settings);
+
+                        for (int i = 1; i < stroke.Count; i++)
+                        {
+                            var point = Transform(stroke[i], scale, glyph.Origin);
+                            sb.AppendLine($"G1 X{point.X:F3} Y{point.Y:F3}");
+                        }
+
+                        AppendPenUp(sb, settings);
+                    }
                 }
             }
 
@@ -85,16 +103,27 @@ namespace PdfToGCode.Core.GCode
             return sb.ToString();
         }
 
+        // Overload for single font
+        public string Generate(ExtractedPageContent content, FontData fontData, GCodeSettings settings)
+        {
+            return Generate(content, fontData, fontData, settings);
+        }
+
+        private bool IsAllUpperCase(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            foreach (char c in text)
+            {
+                if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+            }
+            return true;
+        }
+
         private void AppendPenUp(StringBuilder sb, GCodeSettings settings)
         {
             if (settings.IsServoMode)
             {
-                // M3 S<Value> or M5 usually.
-                // Common servo: M3 S0 (Up) / M3 S255 (Down) depending on config.
-                // We use ZUp as the S-value for UP.
                 sb.AppendLine($"M3 S{settings.ZUp}");
-                // Or "M5" if strictly Spindle Off?
-                // Servo plotters usually keep M3 active and vary S.
             }
             else
             {
@@ -106,21 +135,13 @@ namespace PdfToGCode.Core.GCode
         {
             if (settings.IsServoMode)
             {
-                // We use ZDown as the S-value for DOWN.
                 sb.AppendLine($"M3 S{settings.ZDown}");
-                // Add optional delay? (G4 P0.2)
-                sb.AppendLine("G4 P0.1"); // Small dwell for servo to move
+                sb.AppendLine("G4 P0.1");
             }
             else
             {
                 sb.AppendLine($"G1 Z{settings.ZDown} F{settings.FeedRate}");
             }
-        }
-
-        // Backward compatibility
-        public string Generate(List<ExtractedText> textBlocks, FontData fontData, GCodeSettings settings)
-        {
-            return Generate(new ExtractedPageContent { TextBlocks = textBlocks }, fontData, settings);
         }
 
         private PdfPoint Transform(PdfPoint fontPoint, double scale, PdfPoint originPdf)

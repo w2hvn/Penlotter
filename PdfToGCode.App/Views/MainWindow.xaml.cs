@@ -23,8 +23,11 @@ namespace PdfToGCode.App.Views
         private PdfLoader _pdfLoader;
         private VectorSceneRenderer _sceneRenderer;
         private List<PageData> _loadedPages = new List<PageData>();
-        private FontData _fontData;
+
+        private FontData _titleFontData;
+        private FontData _bodyFontData;
         private FontManager _fontManager;
+
         private Dictionary<int, string> _generatedGCode = new Dictionary<int, string>();
 
         private string _currentPdfPath;
@@ -89,46 +92,58 @@ namespace PdfToGCode.App.Views
         {
             await Task.Run(() => _fontManager.ScanFonts(_fontsDir));
 
-            cboFonts.ItemsSource = _fontManager.AvailableFonts;
+            cboTitleFont.ItemsSource = _fontManager.AvailableFonts;
+            cboBodyFont.ItemsSource = _fontManager.AvailableFonts;
+
             if (_fontManager.AvailableFonts.Count > 0)
             {
-                cboFonts.SelectedIndex = 0;
+                cboTitleFont.SelectedIndex = 0;
+                cboBodyFont.SelectedIndex = 0;
             }
         }
 
-        private async void cboFonts_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        private async void cboTitleFont_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
-            if (cboFonts.SelectedItem == null) return;
-            string fontName = cboFonts.SelectedItem.ToString();
+            if (cboTitleFont.SelectedItem == null) return;
+            string fontName = cboTitleFont.SelectedItem.ToString();
 
-            UpdateStatus($"Loading Font: {fontName}...", true);
+            UpdateStatus($"Loading Title Font: {fontName}...", true);
             try
             {
-                await Task.Run(() =>
-                {
-                    _fontData = _fontManager.LoadFont(fontName, _fontsDir);
-                });
+                await Task.Run(() => _titleFontData = _fontManager.LoadFont(fontName, _fontsDir));
+                CheckFontsAndVectorize();
+            }
+            catch (Exception ex) { UpdateStatus($"Font Load Error: {ex.Message}"); }
+            finally { SetBusy(false); }
+        }
 
-                if (_fontData != null)
-                {
-                    UpdateStatus("Font Loaded");
-                    if (_loadedPages.Count > 0)
-                    {
-                        btnVectorize_Click(this, new RoutedEventArgs());
-                    }
-                }
-                else
-                {
-                    UpdateStatus("Error loading font");
-                }
-            }
-            catch (Exception ex)
+        private async void cboBodyFont_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (cboBodyFont.SelectedItem == null) return;
+            string fontName = cboBodyFont.SelectedItem.ToString();
+
+            UpdateStatus($"Loading Body Font: {fontName}...", true);
+            try
             {
-                UpdateStatus($"Font Load Error: {ex.Message}");
+                await Task.Run(() => _bodyFontData = _fontManager.LoadFont(fontName, _fontsDir));
+                CheckFontsAndVectorize();
             }
-            finally
+            catch (Exception ex) { UpdateStatus($"Font Load Error: {ex.Message}"); }
+            finally { SetBusy(false); }
+        }
+
+        private void CheckFontsAndVectorize()
+        {
+            if (_titleFontData != null && _bodyFontData != null)
             {
-                SetBusy(false);
+                UpdateStatus("Fonts Loaded");
+                if (_loadedPages.Count > 0)
+                {
+                    // Debounce or just trigger? Just trigger.
+                    // Must be called on UI thread? Yes, this method is called from SelectionChanged (UI thread).
+                    // But loading was async.
+                    btnVectorize_Click(this, new RoutedEventArgs());
+                }
             }
         }
 
@@ -293,10 +308,7 @@ namespace PdfToGCode.App.Views
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
 
-                if (_fontData != null)
-                {
-                    btnVectorize_Click(this, new RoutedEventArgs());
-                }
+                CheckFontsAndVectorize();
             }
             catch (Exception ex)
             {
@@ -308,16 +320,16 @@ namespace PdfToGCode.App.Views
         {
             if (_loadedPages.Count == 0) return;
 
-            if (_fontData == null)
+            if (_titleFontData == null || _bodyFontData == null)
             {
-                MessageBox.Show("Please select a font.");
+                MessageBox.Show("Please select fonts for both Title and Body.");
                 return;
             }
 
             UpdateStatus("Vectorizing...", true);
             try
             {
-                await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _fontData);
+                await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _titleFontData, _bodyFontData);
                 UpdateStatus("Vector Preview Ready");
             }
             catch (Exception ex)
@@ -339,9 +351,9 @@ namespace PdfToGCode.App.Views
                 return;
             }
 
-            if (_fontData == null)
+            if (_titleFontData == null || _bodyFontData == null)
             {
-                MessageBox.Show("Please select a font.");
+                MessageBox.Show("Please select fonts for both Title and Body.");
                 return;
             }
 
@@ -350,7 +362,7 @@ namespace PdfToGCode.App.Views
                 !double.TryParse(txtFeedRate.Text, out double feedRate) ||
                 !double.TryParse(txtTravelSpeed.Text, out double travelSpeed))
             {
-                MessageBox.Show("Invalid settings values. Please check Feed Rate, Travel Speed, and Z values.");
+                MessageBox.Show("Invalid settings values.");
                 return;
             }
 
@@ -361,8 +373,6 @@ namespace PdfToGCode.App.Views
             try
             {
                 _generatedGCode.Clear();
-
-                // Save settings
                 SaveSettings();
 
                 await Task.Run(() =>
@@ -382,7 +392,8 @@ namespace PdfToGCode.App.Views
                     {
                         if (page.Content.TextBlocks.Count > 0 || page.Content.Shapes.Count > 0)
                         {
-                            var gcode = generator.Generate(page.Content, _fontData, settings);
+                            // Update Generator to support dual fonts
+                            var gcode = generator.Generate(page.Content, _titleFontData, _bodyFontData, settings);
                             _generatedGCode[page.PageNumber] = gcode;
                         }
                     }

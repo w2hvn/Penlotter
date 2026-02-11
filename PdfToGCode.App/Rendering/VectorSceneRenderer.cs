@@ -20,14 +20,14 @@ namespace PdfToGCode.App.Rendering
             _glyphRenderer = new GlyphRenderer();
         }
 
-        public async Task RenderSceneAsync(ZoomPanCanvas canvas, List<PageData> pages, FontData fontData)
+        public async Task RenderSceneAsync(ZoomPanCanvas canvas, List<PageData> pages, FontData titleFont, FontData bodyFont)
         {
             if (canvas == null) return;
 
             canvas.Children.Clear();
             canvas.Reset();
 
-            if (pages == null || pages.Count == 0 || fontData == null) return;
+            if (pages == null || pages.Count == 0 || titleFont == null || bodyFont == null) return;
 
             // 1. Calculate Geometries
             var renderData = await Task.Run(() =>
@@ -76,9 +76,12 @@ namespace PdfToGCode.App.Rendering
                     {
                         foreach (var block in page.Content.TextBlocks)
                         {
+                            // Determine font based on text content (All Caps = Title)
+                            var fontToUse = IsAllUpperCase(block.Text) ? titleFont : bodyFont;
+
                             foreach (var glyph in block.Glyphs)
                             {
-                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontData);
+                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontToUse);
                                 if (strokes == null) continue;
 
                                 foreach (var stroke in strokes)
@@ -110,7 +113,6 @@ namespace PdfToGCode.App.Rendering
                         }
                     }
 
-                    // Always freeze geometries created on background thread so they can be accessed on UI thread
                     if (textGeometry.CanFreeze) textGeometry.Freeze();
                     if (shapeGeometry.CanFreeze) shapeGeometry.Freeze();
 
@@ -173,6 +175,16 @@ namespace PdfToGCode.App.Rendering
                 }
             }
         }
+
+        private bool IsAllUpperCase(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            foreach (char c in text)
+            {
+                if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+            }
+            return true;
+        }
     }
 
     public class PageData
@@ -180,11 +192,7 @@ namespace PdfToGCode.App.Rendering
         public int PageNumber { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
-
-        // Use Content instead of just TextBlocks
         public ExtractedPageContent Content { get; set; } = new ExtractedPageContent();
-
-        // Deprecated helper for backward compat in other parts of app if needed
         public List<ExtractedText> TextBlocks
         {
             get => Content.TextBlocks;

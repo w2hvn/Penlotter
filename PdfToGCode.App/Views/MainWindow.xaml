@@ -27,29 +27,48 @@
         <Border Grid.Row="1" Background="White" Padding="15" Margin="0,0,0,10">
             <Grid>
                 <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- Import, Range, Font -->
-                    <ColumnDefinition Width="Auto"/> <!-- Spacer/Settings -->
+                    <ColumnDefinition Width="Auto"/> <!-- Import, Range -->
+                    <ColumnDefinition Width="Auto"/> <!-- Fonts -->
+                    <ColumnDefinition Width="Auto"/> <!-- Settings -->
                     <ColumnDefinition Width="*"/>    <!-- Spacer -->
                     <ColumnDefinition Width="Auto"/> <!-- Actions -->
                 </Grid.ColumnDefinitions>
 
-                <!-- Left: Import, Range, Font -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal">
-                    <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,15,0"/>
-
-                    <Label Content="Pages:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
-                    <TextBox Name="txtPageRange" Width="100" VerticalContentAlignment="Center" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
-                    <Button Name="btnSetRange" Content="Set" Click="btnSetRange_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,15,0"/>
-
-                    <Label Content="Font:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
-                    <ComboBox Name="cboFonts" Width="150" VerticalContentAlignment="Center" Margin="0,0,15,0"
-                              SelectionChanged="cboFonts_SelectionChanged"
-                              Style="{StaticResource ModernComboBoxStyle}"/>
+                <!-- Left: Import, Range -->
+                <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,15,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                        <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,10,0"/>
+                        <Label Content="Range:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
+                        <TextBox Name="txtPageRange" Width="80" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button Name="btnSetRange" Content="Set Range" Click="btnSetRange_Click" Style="{StaticResource ModernButtonStyle}" Width="100" HorizontalAlignment="Left"/>
+                    </StackPanel>
                 </StackPanel>
 
-                <!-- Middle: G-Code Settings -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Margin="15,0,0,0">
-                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Margin="0,5,15,5"/>
+                <!-- Fonts -->
+                <StackPanel Grid.Column="1" Orientation="Vertical" Margin="15,0,15,0">
+                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <Label Content="Title Font (Caps):" Style="{StaticResource LabelStyle}" Width="120"/>
+                                <ComboBox Name="cboTitleFont" Width="150" VerticalContentAlignment="Center"
+                                          SelectionChanged="cboTitleFont_SelectionChanged"
+                                          Style="{StaticResource ModernComboBoxStyle}"/>
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal">
+                                <Label Content="Body Font:" Style="{StaticResource LabelStyle}" Width="120"/>
+                                <ComboBox Name="cboBodyFont" Width="150" VerticalContentAlignment="Center"
+                                          SelectionChanged="cboBodyFont_SelectionChanged"
+                                          Style="{StaticResource ModernComboBoxStyle}"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+
+                <!-- Settings -->
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="15,0,0,0">
+                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0"/>
 
                     <StackPanel VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
@@ -72,11 +91,11 @@
                               Style="{StaticResource ModernCheckBoxStyle}"/>
                 </StackPanel>
 
-                <!-- Right: Actions -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal">
-                    <Button Name="btnVectorize" Content="Preview Vectors" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
-                    <Button Name="btnGenerate" Content="Generate G-code" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
-                    <Button Name="btnSave" Content="Save Files" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                <!-- Actions -->
+                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                    <Button Name="btnVectorize" Content="Preview" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                    <Button Name="btnGenerate" Content="Generate" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                    <Button Name="btnSave" Content="Save" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
                 </StackPanel>
             </Grid>
         </Border>
