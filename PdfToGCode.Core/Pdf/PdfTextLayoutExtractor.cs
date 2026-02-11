@@ -137,7 +137,8 @@ namespace PdfToGCode.Core.Pdf
 
             foreach (var path in page.Paths)
             {
-                if (!path.IsStroked) continue;
+                // Shapes can be stroked (lines, borders) or filled (solid blocks, thick lines).
+                if (!path.IsStroked && !path.IsFilled) continue;
 
                 foreach (var subpath in path) // Iterate subpaths directly
                 {
