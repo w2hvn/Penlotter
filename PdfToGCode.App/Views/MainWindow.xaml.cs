@@ -13,6 +13,7 @@ using PdfToGCode.App.Rendering;
 using PdfToGCode.Core.Fonts;
 using PdfToGCode.Core.GCode;
 using PdfToGCode.Core.Pdf;
+using PdfToGCode.Core.Services;
 using PdfToGCode.Core.Utils;
 using Path = System.IO.Path;
 
@@ -27,6 +28,7 @@ namespace PdfToGCode.App.Views
         private FontData _titleFontData;
         private FontData _bodyFontData;
         private FontManager _fontManager;
+        private GrblSender _sender;
 
         private Dictionary<int, string> _generatedGCode = new Dictionary<int, string>();
 
@@ -42,6 +44,19 @@ namespace PdfToGCode.App.Views
             _pdfLoader = new PdfLoader();
             _sceneRenderer = new VectorSceneRenderer();
             _fontManager = new FontManager();
+            _sender = new GrblSender();
+            _sender.OnLog += msg => Dispatcher.Invoke(() => txtSerialStatus.Text = msg);
+            _sender.OnProgress += (curr, total) => Dispatcher.Invoke(() => {
+                progSend.Maximum = total;
+                progSend.Value = curr;
+            });
+            _sender.OnConnectionChanged += connected => Dispatcher.Invoke(() => {
+                btnConnect.Content = connected ? "Disconnect" : "Connect";
+                btnConnect.Background = connected ? Brushes.Red : new SolidColorBrush(Color.FromRgb(76, 175, 80)); // Green
+                btnSend.IsEnabled = connected;
+                cboPorts.IsEnabled = !connected;
+                cboBaudRate.IsEnabled = !connected;
+            });
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             _fontsDir = Path.Combine(baseDir, "Fonts");
@@ -51,7 +66,14 @@ namespace PdfToGCode.App.Views
 
             InitializeFonts();
             LoadSettings();
+            RefreshPorts();
             UpdateStatus("Ready");
+        }
+
+        private void RefreshPorts()
+        {
+            cboPorts.ItemsSource = System.IO.Ports.SerialPort.GetPortNames();
+            if (cboPorts.Items.Count > 0) cboPorts.SelectedIndex = 0;
         }
 
         private void LoadSettings()
@@ -62,6 +84,9 @@ namespace PdfToGCode.App.Views
             txtZDown.Text = settings.ZDown.ToString();
             txtZSafe.Text = settings.ZUp.ToString();
             chkServo.IsChecked = settings.IsServoMode;
+
+            cboPorts.Text = settings.PortName;
+            cboBaudRate.Text = settings.BaudRate.ToString();
         }
 
         private void SaveSettings()
@@ -69,7 +94,8 @@ namespace PdfToGCode.App.Views
             if (double.TryParse(txtFeedRate.Text, out double feed) &&
                 double.TryParse(txtTravelSpeed.Text, out double travel) &&
                 double.TryParse(txtZDown.Text, out double zDown) &&
-                double.TryParse(txtZSafe.Text, out double zUp))
+                double.TryParse(txtZSafe.Text, out double zUp) &&
+                int.TryParse(cboBaudRate.Text, out int baud))
             {
                 var settings = new GCodeSettings
                 {
@@ -77,7 +103,9 @@ namespace PdfToGCode.App.Views
                     TravelSpeed = travel,
                     ZDown = zDown,
                     ZUp = zUp,
-                    IsServoMode = chkServo.IsChecked == true
+                    IsServoMode = chkServo.IsChecked == true,
+                    PortName = cboPorts.Text,
+                    BaudRate = baud
                 };
                 settings.Save(_settingsPath);
             }
@@ -85,7 +113,131 @@ namespace PdfToGCode.App.Views
 
         private void Window_Closing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            if (_sender.IsConnected) _sender.Disconnect();
             SaveSettings();
+        }
+
+        private void btnRefreshPorts_Click(object sender, RoutedEventArgs e)
+        {
+            RefreshPorts();
+        }
+
+        private async void btnConnect_Click(object sender, RoutedEventArgs e)
+        {
+            if (_sender.IsConnected)
+            {
+                _sender.Disconnect();
+            }
+            else
+            {
+                if (cboPorts.SelectedItem == null)
+                {
+                    MessageBox.Show("Please select a COM port.");
+                    return;
+                }
+
+                if (int.TryParse(cboBaudRate.Text, out int baud))
+                {
+                    try
+                    {
+                        btnConnect.IsEnabled = false;
+                        UpdateStatus("Connecting...", true);
+                        await _sender.ConnectAsync(cboPorts.SelectedItem.ToString(), baud);
+                        UpdateStatus("Connected");
+                    }
+                    catch (Exception ex)
+                    {
+                        MessageBox.Show($"Connection failed: {ex.Message}");
+                        UpdateStatus("Connection Failed");
+                    }
+                    finally
+                    {
+                        btnConnect.IsEnabled = true;
+                        SetBusy(false);
+                    }
+                }
+            }
+        }
+
+        private async void btnSend_Click(object sender, RoutedEventArgs e)
+        {
+            if (_generatedGCode.Count == 0)
+            {
+                MessageBox.Show("Please generate G-code first.");
+                return;
+            }
+
+            if (!_sender.IsConnected)
+            {
+                MessageBox.Show("Not connected to machine.");
+                return;
+            }
+
+            btnSend.IsEnabled = false;
+            btnStop.IsEnabled = true;
+            btnPause.IsEnabled = true;
+
+            try
+            {
+                // Iterate through selected pages that have generated gcode
+                // Assuming loaded pages are the ones we want to send
+                foreach (var page in _loadedPages)
+                {
+                    if (!_generatedGCode.ContainsKey(page.PageNumber)) continue;
+
+                    string gcode = _generatedGCode[page.PageNumber];
+                    UpdateStatus($"Sending Page {page.PageNumber}...", true);
+
+                    await _sender.SendGCodeAsync(gcode);
+
+                    // After page complete
+                    UpdateStatus($"Page {page.PageNumber} Complete.");
+
+                    // If not last page, pause for paper change
+                    if (page != _loadedPages.Last())
+                    {
+                        var result = MessageBox.Show($"Page {page.PageNumber} finished. Please change paper and click OK to continue.",
+                                                     "Next Page", MessageBoxButton.OKCancel, MessageBoxImage.Information);
+
+                        if (result == MessageBoxResult.Cancel)
+                        {
+                            _sender.Stop();
+                            break;
+                        }
+                    }
+                }
+                MessageBox.Show("All pages sent successfully.");
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Sending Error: {ex.Message}");
+            }
+            finally
+            {
+                btnSend.IsEnabled = true;
+                btnStop.IsEnabled = false;
+                btnPause.IsEnabled = false;
+                UpdateStatus("Ready");
+            }
+        }
+
+        private void btnPause_Click(object sender, RoutedEventArgs e)
+        {
+            if (btnPause.Content.ToString() == "Pause")
+            {
+                _sender.Pause();
+                btnPause.Content = "Resume";
+            }
+            else
+            {
+                _sender.Resume();
+                btnPause.Content = "Pause";
+            }
+        }
+
+        private void btnStop_Click(object sender, RoutedEventArgs e)
+        {
+            _sender.Stop();
         }
 
         private async void InitializeFonts()

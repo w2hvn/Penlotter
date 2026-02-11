@@ -13,6 +13,10 @@ namespace PdfToGCode.Core.GCode
         public bool UseG64 { get; set; } = true;
         public bool IsServoMode { get; set; } = false;
 
+        // Serial Settings
+        public string PortName { get; set; } = "COM1";
+        public int BaudRate { get; set; } = 115200;
+
         public static GCodeSettings Load(string path)
         {
             if (File.Exists(path))

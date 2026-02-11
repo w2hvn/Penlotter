@@ -12,6 +12,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Header -->
             <RowDefinition Height="Auto"/> <!-- Controls -->
+            <RowDefinition Height="Auto"/> <!-- Serial Control -->
             <RowDefinition Height="*"/>    <!-- Content -->
             <RowDefinition Height="Auto"/> <!-- Status -->
         </Grid.RowDefinitions>
@@ -24,7 +25,7 @@
         </Border>
 
         <!-- Controls Panel -->
-        <Border Grid.Row="1" Background="White" Padding="15" Margin="0,0,0,10">
+        <Border Grid.Row="1" Background="White" Padding="15" Margin="0,0,0,5">
             <Grid>
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/> <!-- Import, Range -->
@@ -100,8 +101,52 @@
             </Grid>
         </Border>
 
+        <!-- Serial Control Panel -->
+        <Border Grid.Row="2" Background="White" Padding="15" Margin="0,0,0,10" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="0,1,0,1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto"/> <!-- Connection -->
+                    <ColumnDefinition Width="Auto"/> <!-- Control -->
+                    <ColumnDefinition Width="*"/>    <!-- Status/Log -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Connection -->
+                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                    <Label Content="Port:" Style="{StaticResource LabelStyle}" VerticalAlignment="Center"/>
+                    <ComboBox Name="cboPorts" Width="80" Margin="5,0" Style="{StaticResource ModernComboBoxStyle}"/>
+                    <Button Name="btnRefreshPorts" Content="↻" Click="btnRefreshPorts_Click" Width="30" Padding="0" Margin="0,0,10,0" ToolTip="Refresh Ports"/>
+
+                    <Label Content="Baud:" Style="{StaticResource LabelStyle}" VerticalAlignment="Center"/>
+                    <ComboBox Name="cboBaudRate" Width="80" Margin="5,0" Style="{StaticResource ModernComboBoxStyle}">
+                        <ComboBoxItem Content="9600"/>
+                        <ComboBoxItem Content="115200" IsSelected="True"/>
+                        <ComboBoxItem Content="250000"/>
+                    </ComboBox>
+
+                    <Button Name="btnConnect" Content="Connect" Click="btnConnect_Click" Style="{StaticResource ModernButtonStyle}" Background="#4CAF50" Margin="10,0,0,0"/>
+                </StackPanel>
+
+                <!-- Control -->
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
+                    <Button Name="btnSend" Content="Send G-Code" Click="btnSend_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0" IsEnabled="False"/>
+                    <Button Name="btnPause" Content="Pause" Click="btnPause_Click" Style="{StaticResource ModernButtonStyle}" Background="#FF9800" Margin="5,0" IsEnabled="False"/>
+                    <Button Name="btnStop" Content="Stop" Click="btnStop_Click" Style="{StaticResource ModernButtonStyle}" Background="#F44336" Margin="5,0" IsEnabled="False"/>
+                </StackPanel>
+
+                <!-- Progress/Log -->
+                <Grid Grid.Column="2" VerticalAlignment="Center">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+                    <ProgressBar Name="progSend" Height="10" Margin="0,0,0,5"/>
+                    <TextBlock Name="txtSerialStatus" Text="Not Connected" FontSize="12" Foreground="Gray"/>
+                </Grid>
+            </Grid>
+        </Border>
+
         <!-- Content Area -->
-        <Grid Grid.Row="2" Margin="15,0,15,15">
+        <Grid Grid.Row="3" Margin="15,0,15,15">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="15"/>
@@ -138,7 +183,7 @@
         </Grid>
 
         <!-- Status Bar -->
-        <Border Grid.Row="3" Background="#333333" Padding="10,5">
+        <Border Grid.Row="4" Background="#333333" Padding="10,5">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Name="txtStatus" Text="Ready" Foreground="White" FontSize="12" Margin="0,0,15,0"/>
                 <ProgressBar Name="progressBar" Width="200" Height="10" IsIndeterminate="True" Visibility="Collapsed"/>
