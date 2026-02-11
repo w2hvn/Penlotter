@@ -29,7 +29,7 @@ namespace PdfToGCode.Tests
             File.WriteAllBytes(pdfPath, pdfBytes);
 
             var extractor = new PdfTextLayoutExtractor();
-            var results = extractor.ExtractWords(pdfPath);
+            var results = extractor.ExtractPageContent(pdfPath, 1).TextBlocks;
 
             Assert.NotEmpty(results);
             Assert.Contains(results, r => r.Text == "Hello");

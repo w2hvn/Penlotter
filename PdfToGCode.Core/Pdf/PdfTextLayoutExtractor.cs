@@ -154,11 +154,19 @@ namespace PdfToGCode.Core.Pdf
                         {
                             currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
                         }
+                        else if (name == "Move")
+                        {
+                            currentPoints.Add(new CorePdfPoint(cmd.Location.X, cmd.Location.Y));
+                        }
                         else if (name == "LineTo")
                         {
                             currentPoints.Add(new CorePdfPoint(cmd.Point.X, cmd.Point.Y));
                         }
-                        else if (name == "ClosePath")
+                        else if (name == "Line")
+                        {
+                            currentPoints.Add(new CorePdfPoint(cmd.To.X, cmd.To.Y));
+                        }
+                        else if (name == "ClosePath" || name == "Close")
                         {
                             isClosed = true;
                             if (currentPoints.Count > 0) currentPoints.Add(currentPoints[0]);

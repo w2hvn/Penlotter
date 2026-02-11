@@ -50,8 +50,10 @@ namespace PdfToGCode.Tests
                 }
             };
 
+            var content = new ExtractedPageContent { TextBlocks = textBlocks };
+
             var generator = new GCodeGenerator();
-            var gcode = generator.Generate(textBlocks, fontData, settings);
+            var gcode = generator.Generate(content, fontData, settings);
 
             Assert.Contains("G21", gcode);
             Assert.Contains("G90", gcode);
