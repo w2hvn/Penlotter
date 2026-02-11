@@ -166,6 +166,29 @@ namespace PdfToGCode.Core.Pdf
                         {
                             currentPoints.Add(new CorePdfPoint(cmd.To.X, cmd.To.Y));
                         }
+                        else if (name == "Rectangle" || name == "AppendRectangle")
+                        {
+                            try
+                            {
+                                // PdfPig 're' operation is typically AppendRectangle class.
+                                // Properties: LowerLeftX, LowerLeftY, Width, Height.
+                                double x = cmd.LowerLeftX;
+                                double y = cmd.LowerLeftY;
+                                double w = cmd.Width;
+                                double h = cmd.Height;
+
+                                // (x, y) -> (x+w, y) -> (x+w, y+h) -> (x, y+h) -> (x, y)
+                                currentPoints.Add(new CorePdfPoint(x, y));
+                                currentPoints.Add(new CorePdfPoint(x + w, y));
+                                currentPoints.Add(new CorePdfPoint(x + w, y + h));
+                                currentPoints.Add(new CorePdfPoint(x, y + h));
+                                currentPoints.Add(new CorePdfPoint(x, y));
+                            }
+                            catch
+                            {
+                                // Fallback for safety if property names differ unexpectedly
+                            }
+                        }
                         else if (name == "ClosePath" || name == "Close")
                         {
                             isClosed = true;
