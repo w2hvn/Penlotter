@@ -81,7 +81,21 @@ namespace PdfToGCode.App.Rendering
 
                             foreach (var glyph in block.Glyphs)
                             {
-                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, fontToUse);
+                                // Font Fallback Logic
+                                FontData glyphFont = fontToUse;
+                                if (!glyphFont.Glyphs.ContainsKey(glyph.Character))
+                                {
+                                    if (bodyFont != null && bodyFont.Glyphs.ContainsKey(glyph.Character))
+                                    {
+                                        glyphFont = bodyFont;
+                                    }
+                                    else
+                                    {
+                                        continue;
+                                    }
+                                }
+
+                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, glyphFont);
                                 if (strokes == null) continue;
 
                                 foreach (var stroke in strokes)

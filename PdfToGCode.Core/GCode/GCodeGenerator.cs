@@ -73,10 +73,23 @@ namespace PdfToGCode.Core.GCode
 
                 foreach (var glyph in block.Glyphs)
                 {
-                    if (!fontData.Glyphs.ContainsKey(glyph.Character)) continue;
+                    FontData glyphFont = fontData;
+                    if (!glyphFont.Glyphs.ContainsKey(glyph.Character))
+                    {
+                        // Fallback to Body Font if current font doesn't have the glyph
+                        // Assuming Body Font is the alternative
+                        if (bodyFont != null && bodyFont.Glyphs.ContainsKey(glyph.Character))
+                        {
+                            glyphFont = bodyFont;
+                        }
+                        else
+                        {
+                            continue; // Skip if neither has it
+                        }
+                    }
 
-                    var geometry = fontData.Glyphs[glyph.Character];
-                    double scale = glyph.FontSize / fontData.UnitsPerEm;
+                    var geometry = glyphFont.Glyphs[glyph.Character];
+                    double scale = glyph.FontSize / glyphFont.UnitsPerEm;
 
                     foreach (var stroke in geometry.Strokes)
                     {
