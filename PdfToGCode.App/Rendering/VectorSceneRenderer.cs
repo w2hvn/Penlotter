@@ -179,11 +179,17 @@ namespace PdfToGCode.App.Rendering
         private bool IsAllUpperCase(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return false;
+
+            bool hasLetters = false;
             foreach (char c in text)
             {
-                if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+                if (char.IsLetter(c))
+                {
+                    hasLetters = true;
+                    if (!char.IsUpper(c)) return false;
+                }
             }
-            return true;
+            return hasLetters;
         }
     }
 

@@ -112,11 +112,20 @@ namespace PdfToGCode.Core.GCode
         private bool IsAllUpperCase(string text)
         {
             if (string.IsNullOrWhiteSpace(text)) return false;
+
+            bool hasLetters = false;
             foreach (char c in text)
             {
-                if (char.IsLetter(c) && !char.IsUpper(c)) return false;
+                if (char.IsLetter(c))
+                {
+                    hasLetters = true;
+                    if (!char.IsUpper(c)) return false;
+                }
             }
-            return true;
+
+            // Only consider Title if it contains at least one letter (and all letters are uppercase).
+            // Pure numbers or symbols should use Body font.
+            return hasLetters;
         }
 
         private void AppendPenUp(StringBuilder sb, GCodeSettings settings)
