@@ -13,10 +13,12 @@ namespace PdfToGCode.Core.Services
         private bool _isPaused;
         private bool _isStopped;
         private TaskCompletionSource<bool> _responseReceived;
+        private Timer _statusTimer;
 
         public event Action<string> OnLog;
         public event Action<int, int> OnProgress;
         public event Action<bool> OnConnectionChanged;
+        public event Action<string, string, string> OnStatusReceived;
 
         public bool IsConnected => _isConnected;
 
@@ -38,6 +40,9 @@ namespace PdfToGCode.Core.Services
                 await Task.Delay(2000); // Wait for GRBL to initialize
                 _serialPort.DiscardInBuffer();
 
+                // Start status polling
+                _statusTimer = new Timer(StatusTimerCallback, null, 1000, 200);
+
                 OnConnectionChanged?.Invoke(true);
                 OnLog?.Invoke($"Connected to {portName} @ {baudRate}");
             }
@@ -51,6 +56,9 @@ namespace PdfToGCode.Core.Services
 
         public void Disconnect()
         {
+            _statusTimer?.Dispose();
+            _statusTimer = null;
+
             if (_serialPort != null)
             {
                 if (_serialPort.IsOpen) _serialPort.Close();
@@ -62,6 +70,14 @@ namespace PdfToGCode.Core.Services
             OnLog?.Invoke("Disconnected");
         }
 
+        private void StatusTimerCallback(object state)
+        {
+            if (_isConnected && _serialPort != null && _serialPort.IsOpen)
+            {
+                try { _serialPort.Write("?"); } catch { }
+            }
+        }
+
         private void SerialPort_DataReceived(object sender, SerialDataReceivedEventArgs e)
         {
             try
@@ -69,7 +85,12 @@ namespace PdfToGCode.Core.Services
                 string data = _serialPort.ReadLine(); // GRBL sends responses ending with \r\n
                 // OnLog?.Invoke($"< {data.Trim()}");
 
-                if (data.Contains("ok"))
+                if (data.StartsWith("<"))
+                {
+                    // Status report: <Idle|MPos:0.000,0.000,0.000|FS:0,0>
+                    ParseStatus(data);
+                }
+                else if (data.Contains("ok"))
                 {
                     _responseReceived?.TrySetResult(true);
                 }
@@ -147,12 +168,20 @@ namespace PdfToGCode.Core.Services
         public void Pause()
         {
             _isPaused = true;
+            if (_isConnected && _serialPort.IsOpen)
+            {
+                _serialPort.Write("!"); // Feed Hold
+            }
             OnLog?.Invoke("Paused.");
         }
 
         public void Resume()
         {
             _isPaused = false;
+            if (_isConnected && _serialPort.IsOpen)
+            {
+                _serialPort.Write("~"); // Cycle Start
+            }
             OnLog?.Invoke("Resumed.");
         }
 
@@ -160,12 +189,37 @@ namespace PdfToGCode.Core.Services
         {
             _isStopped = true;
             _isPaused = false; // Break out of pause loop
-            // Soft reset GRBL?
+
             if (_isConnected && _serialPort.IsOpen)
             {
                 _serialPort.Write("\u0018"); // Ctrl-X (Soft Reset)
             }
             OnLog?.Invoke("Stopped.");
+        }
+
+        private void ParseStatus(string data)
+        {
+            try
+            {
+                // <Idle|MPos:0.000,0.000,0.000|FS:0,0>
+                // Need to extract coordinates.
+                // Could be MPos or WPos.
+
+                string content = data.Trim('<', '>', '\r', '\n');
+                var parts = content.Split('|');
+                foreach (var part in parts)
+                {
+                    if (part.StartsWith("MPos:") || part.StartsWith("WPos:"))
+                    {
+                        var coords = part.Substring(5).Split(',');
+                        if (coords.Length >= 3)
+                        {
+                            OnStatusReceived?.Invoke(coords[0], coords[1], coords[2]);
+                        }
+                    }
+                }
+            }
+            catch { }
         }
     }
 }

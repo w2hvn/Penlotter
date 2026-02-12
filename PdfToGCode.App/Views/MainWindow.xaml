@@ -245,7 +245,32 @@
                                     <Label Content="mm"/>
                                 </StackPanel>
 
-                                <Button Name="btnSetHome" Content="Set Work Home (G92)" Click="btnSetHome_Click" Margin="0,5"/>
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,5">
+                                    <Button Name="btnSetHomeXY" Content="Set XY=0" Click="btnSetHomeXY_Click" Style="{StaticResource ModernButtonStyle}" Width="80" Margin="2" Background="#2196F3"/>
+                                    <Button Name="btnSetHomeZ" Content="Set Z=0" Click="btnSetHomeZ_Click" Style="{StaticResource ModernButtonStyle}" Width="80" Margin="2" Background="#FFC107" Foreground="Black"/>
+                                </StackPanel>
+
+                                <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" CornerRadius="5" Padding="5" Margin="0,10" Background="#F0F0F0">
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                            <ColumnDefinition Width="*"/>
+                                        </Grid.ColumnDefinitions>
+                                        <StackPanel Grid.Column="0" HorizontalAlignment="Center">
+                                            <TextBlock Text="X" FontWeight="Bold"/>
+                                            <TextBlock Name="txtDroX" Text="0.00" FontSize="16" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="1" HorizontalAlignment="Center">
+                                            <TextBlock Text="Y" FontWeight="Bold"/>
+                                            <TextBlock Name="txtDroY" Text="0.00" FontSize="16" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                        <StackPanel Grid.Column="2" HorizontalAlignment="Center">
+                                            <TextBlock Text="Z" FontWeight="Bold"/>
+                                            <TextBlock Name="txtDroZ" Text="0.00" FontSize="16" FontWeight="SemiBold"/>
+                                        </StackPanel>
+                                    </Grid>
+                                </Border>
 
                                 <StackPanel Orientation="Horizontal" Margin="0,5">
                                     <TextBox Name="txtManualCmd" Width="200" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
@@ -260,7 +285,9 @@
                         <Grid>
                             <TextBlock Text="Live Visualizer" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
                             <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True" Margin="0,30,0,0">
-                                <rendering:ZoomPanCanvas x:Name="canvasVisualizer" Background="#222222"/>
+                                <rendering:ZoomPanCanvas x:Name="canvasVisualizer" Background="#222222">
+                                    <!-- Marker will be added programmatically or must be inside -->
+                                </rendering:ZoomPanCanvas>
                             </Border>
                         </Grid>
                     </Border>

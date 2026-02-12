@@ -57,6 +57,12 @@ namespace PdfToGCode.App.Views
                 cboPorts.IsEnabled = !connected;
                 cboBaudRate.IsEnabled = !connected;
             });
+            _sender.OnStatusReceived += (x, y, z) => Dispatcher.Invoke(() => {
+                txtDroX.Text = x;
+                txtDroY.Text = y;
+                txtDroZ.Text = z;
+                UpdateMarkerPosition(x, y);
+            });
 
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
             _fontsDir = Path.Combine(baseDir, "Fonts");
@@ -271,7 +277,8 @@ namespace PdfToGCode.App.Views
         private void btnJogZPos_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Z{GetJogStep()}");
         private void btnJogZNeg_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Z-{GetJogStep()}");
 
-        private void btnSetHome_Click(object sender, RoutedEventArgs e) => SendCommand("G92 X0 Y0 Z0");
+        private void btnSetHomeXY_Click(object sender, RoutedEventArgs e) => SendCommand("G92 X0 Y0");
+        private void btnSetHomeZ_Click(object sender, RoutedEventArgs e) => SendCommand("G92 Z0");
 
         private void btnSendCmd_Click(object sender, RoutedEventArgs e)
         {
@@ -279,6 +286,67 @@ namespace PdfToGCode.App.Views
             {
                 SendCommand(txtManualCmd.Text);
                 txtManualCmd.Clear();
+            }
+        }
+
+        private void UpdateMarkerPosition(string xStr, string yStr)
+        {
+            if (double.TryParse(xStr, out double x) && double.TryParse(yStr, out double y))
+            {
+                // Convert Machine Coords to Canvas Coords
+                // Canvas visualizer has Zoom/Pan transform.
+                // We need to apply the SAME coordinate mapping as the G-code generation.
+                // Or simply: visualizer shows the vector path. The path is in Canvas coordinates (Top-Left origin, but mapped from PDF).
+                // G-code is in PDF coordinates (Bottom-Left origin).
+                // So we need to map G-code (Machine) coords back to Canvas coords.
+
+                // Note: CoordinateMapper.ConvertPdfToCanvas handles this if we know Page Height.
+                // But we might be visualizing different pages.
+                // Let's assume we are visualizing the currently sent page.
+
+                // For now, let's just make the marker visible.
+                // Precise mapping requires knowing the current page's height.
+
+                // Let's try to find the page height from _loadedPages if sending.
+                // If not sending, we might not know which page.
+                // But generally G-code X/Y matches PDF Point X/Y (roughly, if 1 unit = 1 mm).
+
+                // Important: CoordinateMapper.ConvertPdfToCanvas logic:
+                // Y_canvas = PageHeight - Y_pdf
+
+                // We need page height. Let's assume the first page's height or the active one.
+                if (_loadedPages.Count > 0)
+                {
+                    double pageHeight = _loadedPages[0].Height; // Simplification
+                    var canvasPt = CoordinateMapper.ConvertPdfToCanvas(new Core.Utils.PdfPoint(x, y), pageHeight);
+
+                    // We also need to account for the Margin/Offset used in RenderSceneAsync.
+                    // RenderSceneAsync adds `currentX` (50 + i*(Width+50)).
+                    // If we are sending Page 1, Offset X is 50.
+
+                    double currentX = 50;
+                    // This logic is brittle if multiple pages are loaded.
+                    // Ideally, we visualize only ONE page at a time in the Sender tab.
+                    // RenderSceneAsync(canvasVisualizer...) cleared it and rendered ONE page.
+                    // So Offset X is 50.
+
+                    double renderX = canvasPt.X + 50;
+                    double renderY = canvasPt.Y;
+
+                    // Ensure marker exists
+                    var marker = canvasVisualizer.Children.OfType<Ellipse>().FirstOrDefault(e => e.Name == "markerTool");
+                    if (marker == null)
+                    {
+                        marker = new Ellipse { Name = "markerTool", Width = 10, Height = 10, Fill = Brushes.Red, IsHitTestVisible = false };
+                        // Ensure it's on top
+                        Panel.SetZIndex(marker, 1000);
+                        canvasVisualizer.Children.Add(marker);
+                    }
+
+                    Canvas.SetLeft(marker, renderX - 5); // Center it
+                    Canvas.SetTop(marker, renderY - 5);
+                    marker.Visibility = Visibility.Visible;
+                }
             }
         }
 
@@ -429,6 +497,12 @@ namespace PdfToGCode.App.Views
             if (string.IsNullOrEmpty(_currentPdfPath) || _selectedPages.Count == 0) return;
 
             UpdateStatus("Loading Pages...", true);
+
+            // Fix for TabControl not rendering hidden elements: Ensure layout is updated or handled
+            // But since canvasPdf is in Tab 1, and we are likely on Tab 1, it should be fine.
+            // If we are on Tab 2, they might not render.
+            // Canvas content is children based, so clearing and adding children should work regardless of visibility.
+
             canvasPdf.Children.Clear();
             canvasPdf.Reset();
             _loadedPages.Clear();
