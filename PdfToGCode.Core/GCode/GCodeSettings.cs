@@ -9,6 +9,7 @@ namespace PdfToGCode.Core.GCode
         public double FeedRate { get; set; } = 1000;
         public double TravelSpeed { get; set; } = 3000;
         public double ZUp { get; set; } = 5.0;
+        public double ZGap { get; set; } = 1.0; // Low lift for small gaps
         public double ZDown { get; set; } = -1.0;
         public bool UseG64 { get; set; } = true;
         public bool IsServoMode { get; set; } = false;

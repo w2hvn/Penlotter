@@ -28,6 +28,7 @@ namespace PdfToGCode.Core.Services
             try
             {
                 _serialPort = new SerialPort(portName, baudRate);
+                _serialPort.DtrEnable = true; // Required for some Arduino/GRBL boards
                 _serialPort.DataReceived += SerialPort_DataReceived;
                 _serialPort.Open();
                 _isConnected = true;

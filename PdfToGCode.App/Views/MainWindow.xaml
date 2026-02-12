@@ -24,163 +24,249 @@
                        VerticalAlignment="Center"/>
         </Border>
 
-        <!-- Controls Panel -->
-        <Border Grid.Row="1" Background="White" Padding="15" Margin="0,0,0,5">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- Import, Range -->
-                    <ColumnDefinition Width="Auto"/> <!-- Fonts -->
-                    <ColumnDefinition Width="Auto"/> <!-- Settings -->
-                    <ColumnDefinition Width="*"/>    <!-- Spacer -->
-                    <ColumnDefinition Width="Auto"/> <!-- Actions -->
-                </Grid.ColumnDefinitions>
-
-                <!-- Left: Import, Range -->
-                <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,15,0">
-                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                        <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,10,0"/>
-                        <Label Content="Range:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
-                        <TextBox Name="txtPageRange" Width="80" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
-                    </StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Button Name="btnSetRange" Content="Set Range" Click="btnSetRange_Click" Style="{StaticResource ModernButtonStyle}" Width="100" HorizontalAlignment="Left"/>
-                    </StackPanel>
-                </StackPanel>
-
-                <!-- Fonts -->
-                <StackPanel Grid.Column="1" Orientation="Vertical" Margin="15,0,15,0">
-                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0">
-                        <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                                <Label Content="Title Font (Caps):" Style="{StaticResource LabelStyle}" Width="120"/>
-                                <ComboBox Name="cboTitleFont" Width="150" VerticalContentAlignment="Center"
-                                          SelectionChanged="cboTitleFont_SelectionChanged"
-                                          Style="{StaticResource ModernComboBoxStyle}"/>
-                            </StackPanel>
-                            <StackPanel Orientation="Horizontal">
-                                <Label Content="Body Font:" Style="{StaticResource LabelStyle}" Width="120"/>
-                                <ComboBox Name="cboBodyFont" Width="150" VerticalContentAlignment="Center"
-                                          SelectionChanged="cboBodyFont_SelectionChanged"
-                                          Style="{StaticResource ModernComboBoxStyle}"/>
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-                </StackPanel>
-
-                <!-- Settings -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="15,0,0,0">
-                    <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0"/>
-
-                    <StackPanel VerticalAlignment="Center">
-                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
-                            <Label Content="Feed Rate:" Style="{StaticResource LabelStyle}" Width="70"/>
-                            <TextBox Name="txtFeedRate" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
-
-                            <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Width="60"/>
-                            <TextBox Name="txtZDown" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal">
-                            <Label Content="Travel:" Style="{StaticResource LabelStyle}" Width="70"/>
-                            <TextBox Name="txtTravelSpeed" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
-
-                            <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Width="60"/>
-                            <TextBox Name="txtZSafe" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
-                        </StackPanel>
-                    </StackPanel>
-
-                    <CheckBox Name="chkServo" Content="Servo Mode" VerticalAlignment="Center" Margin="15,0,0,0"
-                              Style="{StaticResource ModernCheckBoxStyle}"/>
-                </StackPanel>
-
-                <!-- Actions -->
-                <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Name="btnVectorize" Content="Preview" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
-                    <Button Name="btnGenerate" Content="Generate" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
-                    <Button Name="btnSave" Content="Save" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
-                </StackPanel>
-            </Grid>
-        </Border>
-
-        <!-- Serial Control Panel -->
-        <Border Grid.Row="2" Background="White" Padding="15" Margin="0,0,0,10" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="0,1,0,1">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/> <!-- Connection -->
-                    <ColumnDefinition Width="Auto"/> <!-- Control -->
-                    <ColumnDefinition Width="*"/>    <!-- Status/Log -->
-                </Grid.ColumnDefinitions>
-
-                <!-- Connection -->
-                <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
-                    <Label Content="Port:" Style="{StaticResource LabelStyle}" VerticalAlignment="Center"/>
-                    <ComboBox Name="cboPorts" Width="80" Margin="5,0" Style="{StaticResource ModernComboBoxStyle}"/>
-                    <Button Name="btnRefreshPorts" Content="↻" Click="btnRefreshPorts_Click" Width="30" Padding="0" Margin="0,0,10,0" ToolTip="Refresh Ports"/>
-
-                    <Label Content="Baud:" Style="{StaticResource LabelStyle}" VerticalAlignment="Center"/>
-                    <ComboBox Name="cboBaudRate" Width="80" Margin="5,0" Style="{StaticResource ModernComboBoxStyle}">
-                        <ComboBoxItem Content="9600"/>
-                        <ComboBoxItem Content="115200" IsSelected="True"/>
-                        <ComboBoxItem Content="250000"/>
-                    </ComboBox>
-
-                    <Button Name="btnConnect" Content="Connect" Click="btnConnect_Click" Style="{StaticResource ModernButtonStyle}" Background="#4CAF50" Margin="10,0,0,0"/>
-                </StackPanel>
-
-                <!-- Control -->
-                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,20,0">
-                    <Button Name="btnSend" Content="Send G-Code" Click="btnSend_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0" IsEnabled="False"/>
-                    <Button Name="btnPause" Content="Pause" Click="btnPause_Click" Style="{StaticResource ModernButtonStyle}" Background="#FF9800" Margin="5,0" IsEnabled="False"/>
-                    <Button Name="btnStop" Content="Stop" Click="btnStop_Click" Style="{StaticResource ModernButtonStyle}" Background="#F44336" Margin="5,0" IsEnabled="False"/>
-                </StackPanel>
-
-                <!-- Progress/Log -->
-                <Grid Grid.Column="2" VerticalAlignment="Center">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
-                    <ProgressBar Name="progSend" Height="10" Margin="0,0,0,5"/>
-                    <TextBlock Name="txtSerialStatus" Text="Not Connected" FontSize="12" Foreground="Gray"/>
-                </Grid>
-            </Grid>
-        </Border>
-
-        <!-- Content Area -->
-        <Grid Grid.Row="3" Margin="15,0,15,15">
-            <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="*"/>
-                <ColumnDefinition Width="15"/>
-                <ColumnDefinition Width="*"/>
-            </Grid.ColumnDefinitions>
-
-            <!-- Left Panel: PDF Preview -->
-            <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+        <!-- Tabs -->
+        <TabControl Grid.Row="1" Margin="10">
+            <!-- TAB 1: DESIGN & PREVIEW -->
+            <TabItem Header="Design &amp; Preview">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/> <!-- Controls -->
+                        <RowDefinition Height="*"/>    <!-- Content -->
                     </Grid.RowDefinitions>
-                    <TextBlock Text="PDF View" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
-                    <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
-                        <rendering:ZoomPanCanvas x:Name="canvasPdf" Background="#F5F5F5"/>
-                    </Border>
-                </Grid>
-            </Border>
 
-            <!-- Right Panel: Vector Preview -->
-            <Border Grid.Column="2" Style="{StaticResource CardStyle}">
-                <Grid>
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
-                    </Grid.RowDefinitions>
-                    <TextBlock Text="Vector Preview" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
-                    <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
-                        <rendering:ZoomPanCanvas x:Name="canvasPreview" Background="White"/>
+                    <!-- Controls Panel -->
+                    <Border Grid.Row="0" Background="White" Padding="15" Margin="0,0,0,10" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto"/> <!-- Import, Range -->
+                                <ColumnDefinition Width="Auto"/> <!-- Fonts -->
+                                <ColumnDefinition Width="Auto"/> <!-- Settings -->
+                                <ColumnDefinition Width="*"/>    <!-- Spacer -->
+                                <ColumnDefinition Width="Auto"/> <!-- Actions -->
+                            </Grid.ColumnDefinitions>
+
+                            <!-- Left: Import, Range -->
+                            <StackPanel Grid.Column="0" Orientation="Vertical" VerticalAlignment="Center" Margin="0,0,15,0">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                    <Button Name="btnImport" Content="Import PDF" Click="btnImport_Click" Style="{StaticResource ModernButtonStyle}" Margin="0,0,10,0"/>
+                                    <Label Content="Range:" Style="{StaticResource LabelStyle}" Margin="0,0,5,0"/>
+                                    <TextBox Name="txtPageRange" Width="80" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal">
+                                    <Button Name="btnSetRange" Content="Set Range" Click="btnSetRange_Click" Style="{StaticResource ModernButtonStyle}" Width="100" HorizontalAlignment="Left"/>
+                                </StackPanel>
+                            </StackPanel>
+
+                            <!-- Fonts -->
+                            <StackPanel Grid.Column="1" Orientation="Vertical" Margin="15,0,15,0">
+                                <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0">
+                                    <StackPanel>
+                                        <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                            <Label Content="Title Font (Caps):" Style="{StaticResource LabelStyle}" Width="120"/>
+                                            <ComboBox Name="cboTitleFont" Width="150" VerticalContentAlignment="Center"
+                                                      SelectionChanged="cboTitleFont_SelectionChanged"
+                                                      Style="{StaticResource ModernComboBoxStyle}"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Label Content="Body Font:" Style="{StaticResource LabelStyle}" Width="120"/>
+                                            <ComboBox Name="cboBodyFont" Width="150" VerticalContentAlignment="Center"
+                                                      SelectionChanged="cboBodyFont_SelectionChanged"
+                                                      Style="{StaticResource ModernComboBoxStyle}"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Border>
+                            </StackPanel>
+
+                            <!-- Settings -->
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" Margin="15,0,0,0">
+                                <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1,0,0,0" Padding="15,0,0,0"/>
+
+                                <StackPanel VerticalAlignment="Center">
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                        <Label Content="Feed Rate:" Style="{StaticResource LabelStyle}" Width="70"/>
+                                        <TextBox Name="txtFeedRate" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
+                                        <Label Content="Z Down:" Style="{StaticResource LabelStyle}" Width="60"/>
+                                        <TextBox Name="txtZDown" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Travel:" Style="{StaticResource LabelStyle}" Width="70"/>
+                                        <TextBox Name="txtTravelSpeed" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
+                                        <Label Content="Z Safe:" Style="{StaticResource LabelStyle}" Width="60"/>
+                                        <TextBox Name="txtZSafe" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <Label Content="Z Gap:" Style="{StaticResource LabelStyle}" Width="70"/>
+                                        <TextBox Name="txtZGap" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+                                    </StackPanel>
+                                </StackPanel>
+
+                                <CheckBox Name="chkServo" Content="Servo Mode" VerticalAlignment="Center" Margin="15,0,0,0"
+                                          Style="{StaticResource ModernCheckBoxStyle}"/>
+                            </StackPanel>
+
+                            <!-- Actions -->
+                            <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Name="btnVectorize" Content="Preview" Click="btnVectorize_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                                <Button Name="btnGenerate" Content="Generate" Click="btnGenerate_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                                <Button Name="btnSave" Content="Save" Click="btnSave_Click" Style="{StaticResource ModernButtonStyle}" Margin="5,0"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Content Area -->
+                    <Grid Grid.Row="1" Margin="0,0,0,5">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="15"/>
+                            <ColumnDefinition Width="*"/>
+                        </Grid.ColumnDefinitions>
+
+                        <!-- Left Panel: PDF Preview -->
+                        <Border Grid.Column="0" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="PDF View" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
+                                <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
+                                    <rendering:ZoomPanCanvas x:Name="canvasPdf" Background="#F5F5F5"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+
+                        <!-- Right Panel: Vector Preview -->
+                        <Border Grid.Column="2" Style="{StaticResource CardStyle}">
+                            <Grid>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto"/>
+                                    <RowDefinition Height="*"/>
+                                </Grid.RowDefinitions>
+                                <TextBlock Text="Vector Preview" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
+                                <Border Grid.Row="1" BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True">
+                                    <rendering:ZoomPanCanvas x:Name="canvasPreview" Background="White"/>
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </Grid>
+                </Grid>
+            </TabItem>
+
+            <!-- TAB 2: MACHINE CONTROL -->
+            <TabItem Header="Machine Control">
+                <Grid Margin="10">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="350"/> <!-- Controls -->
+                        <ColumnDefinition Width="*"/>   <!-- Visualizer -->
+                    </Grid.ColumnDefinitions>
+
+                    <!-- Left: Machine Controls -->
+                    <StackPanel Grid.Column="0" Margin="0,0,20,0">
+
+                        <!-- Connection -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="Connection" Style="{StaticResource HeaderTextStyle}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,5">
+                                    <Label Content="Port:" Width="50"/>
+                                    <ComboBox Name="cboPorts" Width="120" Style="{StaticResource ModernComboBoxStyle}"/>
+                                    <Button Name="btnRefreshPorts" Content="↻" Click="btnRefreshPorts_Click" Width="30" Margin="5,0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="0,5">
+                                    <Label Content="Baud:" Width="50"/>
+                                    <ComboBox Name="cboBaudRate" Width="120" Style="{StaticResource ModernComboBoxStyle}">
+                                        <ComboBoxItem Content="9600"/>
+                                        <ComboBoxItem Content="115200" IsSelected="True"/>
+                                        <ComboBoxItem Content="250000"/>
+                                    </ComboBox>
+                                </StackPanel>
+                                <Button Name="btnConnect" Content="Connect" Click="btnConnect_Click" Style="{StaticResource ModernButtonStyle}" Background="#4CAF50" Margin="0,10,0,0"/>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Sender Control -->
+                        <Border Style="{StaticResource CardStyle}" Margin="0,0,0,15">
+                            <StackPanel>
+                                <TextBlock Text="Job Control" Style="{StaticResource HeaderTextStyle}"/>
+                                <ProgressBar Name="progSend" Height="15" Margin="0,0,0,10"/>
+                                <TextBlock Name="txtSerialStatus" Text="Not Connected" FontSize="12" Foreground="Gray" Margin="0,0,0,10" TextWrapping="Wrap"/>
+                                <WrapPanel HorizontalAlignment="Center">
+                                    <Button Name="btnSend" Content="Start Job" Click="btnSend_Click" Style="{StaticResource ModernButtonStyle}" Width="90" Margin="5" IsEnabled="False"/>
+                                    <Button Name="btnPause" Content="Pause" Click="btnPause_Click" Style="{StaticResource ModernButtonStyle}" Background="#FF9800" Width="90" Margin="5" IsEnabled="False"/>
+                                    <Button Name="btnStop" Content="Stop" Click="btnStop_Click" Style="{StaticResource ModernButtonStyle}" Background="#F44336" Width="90" Margin="5" IsEnabled="False"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Jogging & Setup -->
+                        <Border Style="{StaticResource CardStyle}">
+                            <StackPanel>
+                                <TextBlock Text="Jogging &amp; Setup" Style="{StaticResource HeaderTextStyle}"/>
+
+                                <!-- XY Jog -->
+                                <Grid HorizontalAlignment="Center" Margin="0,10">
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="40"/>
+                                        <RowDefinition Height="40"/>
+                                    </Grid.RowDefinitions>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="40"/>
+                                        <ColumnDefinition Width="40"/>
+                                        <ColumnDefinition Width="40"/>
+                                        <ColumnDefinition Width="20"/>
+                                        <ColumnDefinition Width="40"/> <!-- Z -->
+                                    </Grid.ColumnDefinitions>
+
+                                    <!-- Y+ -->
+                                    <Button Content="▲" Grid.Row="0" Grid.Column="1" Click="btnJogYPos_Click"/>
+                                    <!-- Y- -->
+                                    <Button Content="▼" Grid.Row="2" Grid.Column="1" Click="btnJogYNeg_Click"/>
+                                    <!-- X- -->
+                                    <Button Content="◀" Grid.Row="1" Grid.Column="0" Click="btnJogXNeg_Click"/>
+                                    <!-- X+ -->
+                                    <Button Content="▶" Grid.Row="1" Grid.Column="2" Click="btnJogXPos_Click"/>
+
+                                    <!-- Z Control -->
+                                    <Button Content="Z▲" Grid.Row="0" Grid.Column="4" Click="btnJogZPos_Click"/>
+                                    <Button Content="Z▼" Grid.Row="2" Grid.Column="4" Click="btnJogZNeg_Click"/>
+                                </Grid>
+
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,0,0,10">
+                                    <Label Content="Step:" VerticalAlignment="Center"/>
+                                    <ComboBox Name="cboJogStep" Width="60" SelectedIndex="1">
+                                        <ComboBoxItem Content="0.1"/>
+                                        <ComboBoxItem Content="1.0"/>
+                                        <ComboBoxItem Content="10.0"/>
+                                        <ComboBoxItem Content="50.0"/>
+                                    </ComboBox>
+                                    <Label Content="mm"/>
+                                </StackPanel>
+
+                                <Button Name="btnSetHome" Content="Set Work Home (G92)" Click="btnSetHome_Click" Margin="0,5"/>
+
+                                <StackPanel Orientation="Horizontal" Margin="0,5">
+                                    <TextBox Name="txtManualCmd" Width="200" Margin="0,0,5,0" Style="{StaticResource ModernTextBoxStyle}"/>
+                                    <Button Content="Send" Click="btnSendCmd_Click" Width="60"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- Right: Visualizer -->
+                    <Border Grid.Column="1" Style="{StaticResource CardStyle}">
+                        <Grid>
+                            <TextBlock Text="Live Visualizer" Style="{StaticResource HeaderTextStyle}" Margin="0,0,0,10"/>
+                            <Border BorderBrush="{StaticResource BrushLightBorder}" BorderThickness="1" ClipToBounds="True" Margin="0,30,0,0">
+                                <rendering:ZoomPanCanvas x:Name="canvasVisualizer" Background="#222222"/>
+                            </Border>
+                        </Grid>
                     </Border>
                 </Grid>
-            </Border>
-        </Grid>
+            </TabItem>
+        </TabControl>
 
         <!-- Status Bar -->
         <Border Grid.Row="4" Background="#333333" Padding="10,5">

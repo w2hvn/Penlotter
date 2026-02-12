@@ -185,6 +185,9 @@ namespace PdfToGCode.App.Views
                 {
                     if (!_generatedGCode.ContainsKey(page.PageNumber)) continue;
 
+                    // Visualize current page
+                    await _sceneRenderer.RenderSceneAsync(canvasVisualizer, new List<PageData> { page }, _titleFontData, _bodyFontData);
+
                     string gcode = _generatedGCode[page.PageNumber];
                     UpdateStatus($"Sending Page {page.PageNumber}...", true);
 
@@ -238,6 +241,45 @@ namespace PdfToGCode.App.Views
         private void btnStop_Click(object sender, RoutedEventArgs e)
         {
             _sender.Stop();
+        }
+
+        // Jogging & Setup
+        private async void SendCommand(string cmd)
+        {
+            if (!_sender.IsConnected) return;
+            try
+            {
+                await _sender.SendGCodeAsync(cmd);
+            }
+            catch (Exception ex)
+            {
+                UpdateStatus($"Jog Error: {ex.Message}");
+            }
+        }
+
+        private double GetJogStep()
+        {
+            if (cboJogStep.SelectedItem is ComboBoxItem item && double.TryParse(item.Content.ToString(), out double step))
+                return step;
+            return 1.0;
+        }
+
+        private void btnJogYPos_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Y{GetJogStep()}");
+        private void btnJogYNeg_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Y-{GetJogStep()}");
+        private void btnJogXPos_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 X{GetJogStep()}");
+        private void btnJogXNeg_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 X-{GetJogStep()}");
+        private void btnJogZPos_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Z{GetJogStep()}");
+        private void btnJogZNeg_Click(object sender, RoutedEventArgs e) => SendCommand($"G91 G0 Z-{GetJogStep()}");
+
+        private void btnSetHome_Click(object sender, RoutedEventArgs e) => SendCommand("G92 X0 Y0 Z0");
+
+        private void btnSendCmd_Click(object sender, RoutedEventArgs e)
+        {
+            if (!string.IsNullOrWhiteSpace(txtManualCmd.Text))
+            {
+                SendCommand(txtManualCmd.Text);
+                txtManualCmd.Clear();
+            }
         }
 
         private async void InitializeFonts()
