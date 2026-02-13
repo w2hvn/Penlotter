@@ -96,7 +96,7 @@ namespace PdfToGCode.Core.GCode
                     }
 
                     var geometry = glyphFont.Glyphs[glyph.Character];
-                    double scale = glyph.FontSize / glyphFont.UnitsPerEm;
+                    double scale = (glyph.FontSize / glyphFont.UnitsPerEm) * settings.TextScale;
 
                     bool isFirstStrokeInGlyph = true;
 

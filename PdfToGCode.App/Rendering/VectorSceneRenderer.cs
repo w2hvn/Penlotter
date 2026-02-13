@@ -20,7 +20,8 @@ namespace PdfToGCode.App.Rendering
             _glyphRenderer = new GlyphRenderer();
         }
 
-        public async Task RenderSceneAsync(ZoomPanCanvas canvas, List<PageData> pages, FontData titleFont, FontData bodyFont)
+        // Update signature to accept textScale (optional, default 1.0)
+        public async Task RenderSceneAsync(ZoomPanCanvas canvas, List<PageData> pages, FontData titleFont, FontData bodyFont, double textScale = 1.0)
         {
             if (canvas == null) return;
 
@@ -95,7 +96,9 @@ namespace PdfToGCode.App.Rendering
                                     }
                                 }
 
-                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, glyph.FontSize, glyphFont);
+                                // Apply Scale
+                                double effectiveSize = glyph.FontSize * textScale;
+                                var strokes = _glyphRenderer.RenderText(glyph.Character.ToString(), glyph.Origin.X, glyph.Origin.Y, effectiveSize, glyphFont);
                                 if (strokes == null) continue;
 
                                 foreach (var stroke in strokes)
@@ -212,6 +215,7 @@ namespace PdfToGCode.App.Rendering
         public int PageNumber { get; set; }
         public double Width { get; set; }
         public double Height { get; set; }
+        public System.Windows.Media.Imaging.BitmapSource Image { get; set; }
         public ExtractedPageContent Content { get; set; } = new ExtractedPageContent();
         public List<ExtractedText> TextBlocks
         {

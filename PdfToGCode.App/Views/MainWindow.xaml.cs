@@ -93,6 +93,8 @@ namespace PdfToGCode.App.Views
 
             cboPorts.Text = settings.PortName;
             cboBaudRate.Text = settings.BaudRate.ToString();
+            txtZGap.Text = settings.ZGap.ToString();
+            txtTextScale.Text = settings.TextScale.ToString();
         }
 
         private void SaveSettings()
@@ -103,12 +105,18 @@ namespace PdfToGCode.App.Views
                 double.TryParse(txtZSafe.Text, out double zUp) &&
                 int.TryParse(cboBaudRate.Text, out int baud))
             {
+                double.TryParse(txtZGap.Text, out double zGap);
+                double.TryParse(txtTextScale.Text, out double txtScale);
+                if (txtScale <= 0) txtScale = 1.0;
+
                 var settings = new GCodeSettings
                 {
                     FeedRate = feed,
                     TravelSpeed = travel,
                     ZDown = zDown,
                     ZUp = zUp,
+                    ZGap = zGap,
+                    TextScale = txtScale,
                     IsServoMode = chkServo.IsChecked == true,
                     PortName = cboPorts.Text,
                     BaudRate = baud
@@ -192,7 +200,9 @@ namespace PdfToGCode.App.Views
                     if (!_generatedGCode.ContainsKey(page.PageNumber)) continue;
 
                     // Visualize current page
-                    await _sceneRenderer.RenderSceneAsync(canvasVisualizer, new List<PageData> { page }, _titleFontData, _bodyFontData);
+                    double.TryParse(txtTextScale.Text, out double scale);
+                    if (scale <= 0) scale = 1.0;
+                    await _sceneRenderer.RenderSceneAsync(canvasVisualizer, new List<PageData> { page }, _titleFontData, _bodyFontData, scale);
 
                     string gcode = _generatedGCode[page.PageNumber];
                     UpdateStatus($"Sending Page {page.PageNumber}...", true);
@@ -346,6 +356,68 @@ namespace PdfToGCode.App.Views
                     Canvas.SetLeft(marker, renderX - 5); // Center it
                     Canvas.SetTop(marker, renderY - 5);
                     marker.Visibility = Visibility.Visible;
+                }
+            }
+        }
+
+        private void TabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.Source is TabControl && cboTitleFont != null) // Check if UI loaded
+            {
+                // If Design tab is selected and canvas is empty but data exists, restore it.
+                // Assuming Design tab is index 0.
+                // We can check visibility or just blindly restore if data present and canvas empty.
+                if (canvasPdf.IsVisible && canvasPdf.Children.Count == 0 && _loadedPages.Count > 0)
+                {
+                    RestorePdfView(_loadedPages);
+                    btnVectorize_Click(this, new RoutedEventArgs()); // Restore vectors
+                }
+            }
+        }
+
+        private void RestorePdfView(List<PageData> pages)
+        {
+            canvasPdf.Children.Clear();
+            canvasPdf.Reset();
+
+            double currentX = 50;
+            double margin = 50;
+
+            foreach (var item in pages)
+            {
+                if (item.Image != null)
+                {
+                    var border = new Border
+                    {
+                        BorderBrush = Brushes.Black,
+                        BorderThickness = new Thickness(1),
+                        Child = new Image
+                        {
+                            Source = item.Image,
+                            Stretch = Stretch.None
+                        }
+                    };
+
+                    Canvas.SetLeft(border, currentX);
+                    Canvas.SetTop(border, 0);
+                    canvasPdf.Children.Add(border);
+
+                    var label = new TextBlock
+                    {
+                        Text = $"Page {item.PageNumber}",
+                        Foreground = Brushes.Black,
+                        FontSize = 14,
+                        FontWeight = FontWeights.Bold
+                    };
+                    Canvas.SetLeft(label, currentX);
+                    Canvas.SetTop(label, -25);
+                    canvasPdf.Children.Add(label);
+
+                    currentX += item.Image.Width + margin;
+                }
+                else
+                {
+                    currentX += 500 + margin;
                 }
             }
         }
@@ -522,7 +594,8 @@ namespace PdfToGCode.App.Views
                             PageNumber = pageNum,
                             Width = result.Width,
                             Height = result.Height,
-                            Content = result.Content
+                            Content = result.Content,
+                            Image = result.Image
                         };
 
                         list.Add((pageData, result.Image));
@@ -530,48 +603,10 @@ namespace PdfToGCode.App.Views
                     return list;
                 });
 
-                double currentX = 50;
-                double margin = 50;
+                RestorePdfView(pages.Select(p => p.Data).ToList());
 
-                foreach (var item in pages)
-                {
-                    if (item.Image != null)
-                    {
-                        var border = new Border
-                        {
-                            BorderBrush = Brushes.Black,
-                            BorderThickness = new Thickness(1),
-                            Child = new Image
-                            {
-                                Source = item.Image,
-                                Stretch = Stretch.None
-                            }
-                        };
-
-                        Canvas.SetLeft(border, currentX);
-                        Canvas.SetTop(border, 0);
-                        canvasPdf.Children.Add(border);
-
-                        var label = new TextBlock
-                        {
-                            Text = $"Page {item.Data.PageNumber}",
-                            Foreground = Brushes.Black,
-                            FontSize = 14,
-                            FontWeight = FontWeights.Bold
-                        };
-                        Canvas.SetLeft(label, currentX);
-                        Canvas.SetTop(label, -25);
-                        canvasPdf.Children.Add(label);
-
-                        currentX += item.Image.Width + margin;
-                    }
-                    else
-                    {
-                        currentX += 500 + margin;
-                    }
-
-                    _loadedPages.Add(item.Data);
-                }
+                _loadedPages.Clear();
+                _loadedPages.AddRange(pages.Select(p => p.Data));
 
                 canvasPreview.Children.Clear();
                 canvasPreview.Reset();
@@ -597,7 +632,9 @@ namespace PdfToGCode.App.Views
             UpdateStatus("Vectorizing...", true);
             try
             {
-                await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _titleFontData, _bodyFontData);
+                double.TryParse(txtTextScale.Text, out double scale);
+                if (scale <= 0) scale = 1.0;
+                await _sceneRenderer.RenderSceneAsync(canvasPreview, _loadedPages, _titleFontData, _bodyFontData, scale);
                 UpdateStatus("Vector Preview Ready");
             }
             catch (Exception ex)

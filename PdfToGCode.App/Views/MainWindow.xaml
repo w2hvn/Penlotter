@@ -11,9 +11,7 @@
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/> <!-- Header -->
-            <RowDefinition Height="Auto"/> <!-- Controls -->
-            <RowDefinition Height="Auto"/> <!-- Serial Control -->
-            <RowDefinition Height="*"/>    <!-- Content -->
+            <RowDefinition Height="*"/>    <!-- Tabs -->
             <RowDefinition Height="Auto"/> <!-- Status -->
         </Grid.RowDefinitions>
 
@@ -25,7 +23,7 @@
         </Border>
 
         <!-- Tabs -->
-        <TabControl Grid.Row="1" Margin="10">
+        <TabControl Grid.Row="1" Margin="10" SelectionChanged="TabControl_SelectionChanged">
             <!-- TAB 1: DESIGN & PREVIEW -->
             <TabItem Header="Design &amp; Preview">
                 <Grid>
@@ -99,6 +97,9 @@
                                     <StackPanel Orientation="Horizontal">
                                         <Label Content="Z Gap:" Style="{StaticResource LabelStyle}" Width="70"/>
                                         <TextBox Name="txtZGap" Width="50" VerticalContentAlignment="Center" Margin="0,0,10,0" Style="{StaticResource ModernTextBoxStyle}"/>
+
+                                        <Label Content="Txt Scale:" Style="{StaticResource LabelStyle}" Width="70"/>
+                                        <TextBox Name="txtTextScale" Width="50" VerticalContentAlignment="Center" Style="{StaticResource ModernTextBoxStyle}"/>
                                     </StackPanel>
                                 </StackPanel>
 
@@ -296,7 +297,7 @@
         </TabControl>
 
         <!-- Status Bar -->
-        <Border Grid.Row="4" Background="#333333" Padding="10,5">
+        <Border Grid.Row="2" Background="#333333" Padding="10,5">
             <StackPanel Orientation="Horizontal">
                 <TextBlock Name="txtStatus" Text="Ready" Foreground="White" FontSize="12" Margin="0,0,15,0"/>
                 <ProgressBar Name="progressBar" Width="200" Height="10" IsIndeterminate="True" Visibility="Collapsed"/>
